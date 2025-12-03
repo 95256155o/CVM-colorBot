@@ -39,9 +39,33 @@ CVM colorbot is a computer-vision mouse aiming system using HSV color detection 
 
 ## Installation
 
+### Method 1: Quick Setup (Recommended)
+
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/CVM-colorBot.git
+   git clone https://github.com/asenyeroao-ct/CVM-colorBot.git
+   cd CVM-colorBot
+   ```
+
+2. **Run the setup script**
+   ```bash
+   setup.bat
+   ```
+   This will automatically:
+   - Check Python installation
+   - Create a virtual environment
+   - Install all dependencies
+
+3. **Run the application**
+   ```bash
+   run.bat
+   ```
+
+### Method 2: Manual Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/asenyeroao-ct/CVM-colorBot.git
    cd CVM-colorBot
    ```
 
