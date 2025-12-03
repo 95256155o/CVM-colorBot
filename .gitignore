@@ -24,8 +24,8 @@ ENV/
 .DS_Store
 
 # Project specific
-# config.json - Allow default config to be committed
-# configs/ - Allow configs directory to be committed
+config.json
+configs/
 *.log
 *.tmp
 *.bak
