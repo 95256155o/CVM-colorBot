@@ -181,7 +181,15 @@ Configuration is stored in `config.json` and can be managed through the GUI or m
 
 ## License
 
-[Specify your license here]
+Copyright (c) 2025 asenyeroao-ct. All rights reserved.
+
+This project is licensed under a custom license. See [LICENSE](LICENSE) file for details.
+
+**Key Points:**
+- Personal, non-commercial use is permitted
+- Modification and redistribution are allowed with proper attribution
+- Commercial use is prohibited without written permission
+- Original author **asenyeroao-ct** must be credited in all distributions
 
 ## Disclaimer
 

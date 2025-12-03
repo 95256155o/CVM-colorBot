@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 
 echo ========================================
-echo    Eventuri_CB Launcher
+echo    CVM colorBot Launcher
 echo ========================================
 echo.
 
@@ -23,8 +23,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: Start Eventuri_CB using venv Python
-echo [*] Starting Eventuri_CB...
+:: Start CVM colorBot using venv Python
+echo [*] Starting CVM colorBot...
 echo.
 
 :: Use venv Python directly

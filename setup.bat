@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 
 echo ========================================
-echo    Eventuri_CB Setup Script
+echo    CVM colorBot Setup Script
 echo ========================================
 echo.
 

@@ -24,8 +24,9 @@ ENV/
 .DS_Store
 
 # Project specific
-config.json
-configs/
+# config.json - now tracked in repository
+configs/*
+!configs/default.json
 *.log
 *.tmp
 *.bak

@@ -43,7 +43,7 @@ class ViewerApp(ctk.CTk):
         super().__init__()
         
         # --- 視窗設置 ---
-        self.title("51ColorBot")
+        self.title("CVM colorBot")
         self.geometry("1210x950")
         
         # 注意：使用 overrideredirect 會導致任務欄不顯示
@@ -117,7 +117,7 @@ class ViewerApp(ctk.CTk):
         # 僅顯示一個小的標識
         title_lbl = ctk.CTkLabel(
             self.title_bar, 
-            text="51ColorBot", 
+            text="CVM colorBot", 
             font=("Roboto", 10, "bold"),
             text_color=COLOR_TEXT_DIM
         )
