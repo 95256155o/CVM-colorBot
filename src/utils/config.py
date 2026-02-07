@@ -25,7 +25,8 @@ class Config:
         self.in_game_sens = 0.235
         self.mouse_dpi = 800
         # --- Aimbot Mode ---
-        self.mode = "Normal"    
+        self.mode = "Normal"        # Main Aimbot 模式: Normal, Silent, NCAF, WindMouse, Bezier
+        self.mode_sec = "Normal"    # Sec Aimbot 模式: Normal, Silent, NCAF, WindMouse, Bezier
 
         self.fovsize = 100
         self.tbfovsize = 5 
@@ -67,6 +68,51 @@ class Config:
         self.aim_offsetY_sec = 0  # Sec Aimbot Y 偏移
         self.aim_type_sec = "head"  # Sec Aimbot 瞄準類型
         
+        # --- NCAF Parameters (Main) ---
+        # Snap Radius = outer engagement zone (larger), Near Radius = inner precision zone (smaller)
+        self.ncaf_snap_radius = 150.0
+        self.ncaf_near_radius = 50.0
+        self.ncaf_alpha = 1.5
+        self.ncaf_snap_boost = 0.3
+        self.ncaf_max_step = 50.0
+        
+        # --- NCAF Parameters (Sec) ---
+        self.ncaf_snap_radius_sec = 150.0
+        self.ncaf_near_radius_sec = 50.0
+        self.ncaf_alpha_sec = 1.5
+        self.ncaf_snap_boost_sec = 0.3
+        self.ncaf_max_step_sec = 50.0
+        
+        # --- WindMouse Parameters (Main) ---
+        self.wm_gravity = 9.0
+        self.wm_wind = 3.0
+        self.wm_max_step = 15.0
+        self.wm_min_step = 2.0
+        self.wm_min_delay = 0.001
+        self.wm_max_delay = 0.003
+        
+        # --- WindMouse Parameters (Sec) ---
+        self.wm_gravity_sec = 9.0
+        self.wm_wind_sec = 3.0
+        self.wm_max_step_sec = 15.0
+        self.wm_min_step_sec = 2.0
+        self.wm_min_delay_sec = 0.001
+        self.wm_max_delay_sec = 0.003
+        
+        # --- Bezier Parameters (Main) ---
+        self.bezier_segments = 8
+        self.bezier_ctrl_x = 16.0
+        self.bezier_ctrl_y = 16.0
+        self.bezier_speed = 1.0
+        self.bezier_delay = 0.002
+        
+        # --- Bezier Parameters (Sec) ---
+        self.bezier_segments_sec = 8
+        self.bezier_ctrl_x_sec = 16.0
+        self.bezier_ctrl_y_sec = 16.0
+        self.bezier_speed_sec = 1.0
+        self.bezier_delay_sec = 0.002
+        
         # --- Anti-Smoke Settings ---
         self.anti_smoke_enabled = False  # Main Aimbot Anti-Smoke
         self.anti_smoke_enabled_sec = False  # Sec Aimbot Anti-Smoke
@@ -90,6 +136,11 @@ class Config:
         self.udp_port = "1234"
         self.capture_mode = "NDI"
         self.last_ndi_source = None
+        
+        # --- MSS Settings ---
+        self.mss_monitor_index = 1  # 螢幕索引 (1=主螢幕)
+        self.mss_fov_x = 320       # 擷取區域寬度的一半 (像素)
+        self.mss_fov_y = 320       # 擷取區域高度的一半 (像素)
         
         # --- CaptureCard Settings ---
         self.capture_device_index = 0
@@ -135,6 +186,7 @@ class Config:
             
             # Aimbot Mode
             "mode": self.mode,
+            "mode_sec": self.mode_sec,
             "fovsize": self.fovsize,
             "tbfovsize": self.tbfovsize,
             "tbdelay_min": self.tbdelay_min,
@@ -172,6 +224,45 @@ class Config:
             "aim_offsetY_sec": self.aim_offsetY_sec,
             "aim_type_sec": self.aim_type_sec,
             
+            # NCAF Parameters (Main)
+            "ncaf_near_radius": self.ncaf_near_radius,
+            "ncaf_snap_radius": self.ncaf_snap_radius,
+            "ncaf_alpha": self.ncaf_alpha,
+            "ncaf_snap_boost": self.ncaf_snap_boost,
+            "ncaf_max_step": self.ncaf_max_step,
+            # NCAF Parameters (Sec)
+            "ncaf_near_radius_sec": self.ncaf_near_radius_sec,
+            "ncaf_snap_radius_sec": self.ncaf_snap_radius_sec,
+            "ncaf_alpha_sec": self.ncaf_alpha_sec,
+            "ncaf_snap_boost_sec": self.ncaf_snap_boost_sec,
+            "ncaf_max_step_sec": self.ncaf_max_step_sec,
+            # WindMouse Parameters (Main)
+            "wm_gravity": self.wm_gravity,
+            "wm_wind": self.wm_wind,
+            "wm_max_step": self.wm_max_step,
+            "wm_min_step": self.wm_min_step,
+            "wm_min_delay": self.wm_min_delay,
+            "wm_max_delay": self.wm_max_delay,
+            # WindMouse Parameters (Sec)
+            "wm_gravity_sec": self.wm_gravity_sec,
+            "wm_wind_sec": self.wm_wind_sec,
+            "wm_max_step_sec": self.wm_max_step_sec,
+            "wm_min_step_sec": self.wm_min_step_sec,
+            "wm_min_delay_sec": self.wm_min_delay_sec,
+            "wm_max_delay_sec": self.wm_max_delay_sec,
+            # Bezier Parameters (Main)
+            "bezier_segments": self.bezier_segments,
+            "bezier_ctrl_x": self.bezier_ctrl_x,
+            "bezier_ctrl_y": self.bezier_ctrl_y,
+            "bezier_speed": self.bezier_speed,
+            "bezier_delay": self.bezier_delay,
+            # Bezier Parameters (Sec)
+            "bezier_segments_sec": self.bezier_segments_sec,
+            "bezier_ctrl_x_sec": self.bezier_ctrl_x_sec,
+            "bezier_ctrl_y_sec": self.bezier_ctrl_y_sec,
+            "bezier_speed_sec": self.bezier_speed_sec,
+            "bezier_delay_sec": self.bezier_delay_sec,
+            
             # Anti-Smoke Settings
             "anti_smoke_enabled": self.anti_smoke_enabled,
             "anti_smoke_enabled_sec": self.anti_smoke_enabled_sec,
@@ -194,6 +285,11 @@ class Config:
             "udp_port": self.udp_port,
             "capture_mode": self.capture_mode,
             "last_ndi_source": self.last_ndi_source,
+            
+            # MSS Settings
+            "mss_monitor_index": self.mss_monitor_index,
+            "mss_fov_x": self.mss_fov_x,
+            "mss_fov_y": self.mss_fov_y,
             
             # CaptureCard Settings
             "capture_device_index": self.capture_device_index,
@@ -226,7 +322,6 @@ class Config:
         try:
             with open(filename, 'w') as f:
                 json.dump(self.to_dict(), f, indent=4)
-            print(f"[Config] Configuration saved to {filename}")
         except Exception as e:
             print(f"[Config] Failed to save configuration: {e}")
     

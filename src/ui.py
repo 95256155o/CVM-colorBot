@@ -325,7 +325,7 @@ class ViewerApp(ctk.CTk):
         # Capture Method Selection
         self.capture_method_var.set(self.capture.mode)
         # 創建 option menu
-        self.capture_method_option = self._add_option_row("Method", ["NDI", "UDP", "CaptureCard"], self._on_capture_method_changed)
+        self.capture_method_option = self._add_option_row("Method", ["NDI", "UDP", "CaptureCard", "MSS"], self._on_capture_method_changed)
         # 顯式設置當前值
         self.capture_method_option.set(self.capture.mode)
         
@@ -346,12 +346,6 @@ class ViewerApp(ctk.CTk):
                         self._on_config_in_game_sens_changed, is_float=True)
         
         self._add_spacer()
-        
-        self.mode_option = self._add_option_row("Operation Mode", ["Normal"], self._on_mode_selected)
-        self._option_widgets["mode"] = self.mode_option
-        # 設置當前值
-        current_mode = getattr(config, "mode", "Normal")
-        self.mode_option.set(current_mode)
         
         self.color_option = self._add_option_row("Target Color", ["yellow", "purple"], self._on_color_selected)
         self._option_widgets["color"] = self.color_option
@@ -596,6 +590,114 @@ class ViewerApp(ctk.CTk):
             btn_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
             btn_frame.pack(fill="x", pady=10)
             self._add_text_button(btn_frame, "CONNECT", self._connect_capture_card).pack(side="left")
+        
+        elif method == "MSS":
+            # MSS Screen Capture Controls
+            self._add_subtitle_in_frame(self.capture_content_frame, "MSS SCREEN CAPTURE")
+            
+            # Monitor Index
+            monitor_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            monitor_frame.pack(fill="x", pady=5)
+            ctk.CTkLabel(monitor_frame, text="Monitor Index", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.mss_monitor_entry = ctk.CTkEntry(
+                monitor_frame, fg_color=COLOR_SURFACE, border_width=0,
+                text_color=COLOR_TEXT, width=150
+            )
+            self.mss_monitor_entry.pack(side="right")
+            self.mss_monitor_entry.insert(0, str(getattr(config, "mss_monitor_index", 1)))
+            self.mss_monitor_entry.bind("<KeyRelease>", self._on_mss_monitor_changed)
+            self.mss_monitor_entry.bind("<FocusOut>", self._on_mss_monitor_changed)
+            
+            # 可用螢幕列表資訊
+            try:
+                from src.capture.mss_capture import MSSCapture, HAS_MSS
+                if HAS_MSS:
+                    temp_mss = MSSCapture()
+                    monitor_list = temp_mss.get_monitor_list()
+                    if monitor_list:
+                        info_text = " | ".join(monitor_list)
+                    else:
+                        info_text = "No monitors detected"
+                else:
+                    info_text = "mss not installed (pip install mss)"
+            except Exception:
+                info_text = "Unable to detect monitors"
+            
+            ctk.CTkLabel(
+                self.capture_content_frame, text=info_text,
+                font=("Roboto", 9), text_color=COLOR_TEXT_DIM
+            ).pack(anchor="w", pady=(0, 5))
+            
+            self._add_spacer_in_frame(self.capture_content_frame)
+            self._add_subtitle_in_frame(self.capture_content_frame, "CAPTURE FOV (center-based)")
+            
+            # FOV X Slider
+            fov_x_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_x_frame.pack(fill="x", pady=2)
+            fov_x_header = ctk.CTkFrame(fov_x_frame, fg_color="transparent")
+            fov_x_header.pack(fill="x")
+            ctk.CTkLabel(fov_x_header, text="FOV X (half-width)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.mss_fov_x_entry = ctk.CTkEntry(
+                fov_x_header, width=80, height=25, fg_color=COLOR_SURFACE,
+                border_width=1, border_color=COLOR_BORDER,
+                text_color=COLOR_TEXT, font=FONT_MAIN, justify="center"
+            )
+            init_fov_x = int(getattr(config, "mss_fov_x", 320))
+            self.mss_fov_x_entry.insert(0, str(init_fov_x))
+            self.mss_fov_x_entry.pack(side="right")
+            
+            self.mss_fov_x_slider = ctk.CTkSlider(
+                fov_x_frame, from_=16, to=1920, number_of_steps=100,
+                fg_color=COLOR_BORDER, progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT, button_hover_color=COLOR_ACCENT,
+                height=10,
+                command=self._on_mss_fov_x_slider_changed
+            )
+            self.mss_fov_x_slider.set(init_fov_x)
+            self.mss_fov_x_slider.pack(fill="x", pady=(2, 5))
+            self.mss_fov_x_entry.bind("<Return>", self._on_mss_fov_x_entry_changed)
+            self.mss_fov_x_entry.bind("<FocusOut>", self._on_mss_fov_x_entry_changed)
+            
+            # FOV Y Slider
+            fov_y_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_y_frame.pack(fill="x", pady=2)
+            fov_y_header = ctk.CTkFrame(fov_y_frame, fg_color="transparent")
+            fov_y_header.pack(fill="x")
+            ctk.CTkLabel(fov_y_header, text="FOV Y (half-height)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.mss_fov_y_entry = ctk.CTkEntry(
+                fov_y_header, width=80, height=25, fg_color=COLOR_SURFACE,
+                border_width=1, border_color=COLOR_BORDER,
+                text_color=COLOR_TEXT, font=FONT_MAIN, justify="center"
+            )
+            init_fov_y = int(getattr(config, "mss_fov_y", 320))
+            self.mss_fov_y_entry.insert(0, str(init_fov_y))
+            self.mss_fov_y_entry.pack(side="right")
+            
+            self.mss_fov_y_slider = ctk.CTkSlider(
+                fov_y_frame, from_=16, to=1080, number_of_steps=100,
+                fg_color=COLOR_BORDER, progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT, button_hover_color=COLOR_ACCENT,
+                height=10,
+                command=self._on_mss_fov_y_slider_changed
+            )
+            self.mss_fov_y_slider.set(init_fov_y)
+            self.mss_fov_y_slider.pack(fill="x", pady=(2, 5))
+            self.mss_fov_y_entry.bind("<Return>", self._on_mss_fov_y_entry_changed)
+            self.mss_fov_y_entry.bind("<FocusOut>", self._on_mss_fov_y_entry_changed)
+            
+            # 擷取範圍資訊
+            total_w = init_fov_x * 2
+            total_h = init_fov_y * 2
+            self.mss_capture_info_label = ctk.CTkLabel(
+                self.capture_content_frame,
+                text=f"Capture area: {total_w} x {total_h} px (centered on screen)",
+                font=("Roboto", 9), text_color=COLOR_TEXT_DIM
+            )
+            self.mss_capture_info_label.pack(anchor="w", pady=(0, 5))
+            
+            btn_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            btn_frame.pack(fill="x", pady=10)
+            self._add_text_button(btn_frame, "CONNECT", self._connect_mss).pack(side="left")
 
     def _on_udp_ip_changed(self, event=None):
         """實時保存 UDP IP"""
@@ -793,53 +895,142 @@ class ViewerApp(ctk.CTk):
         self._add_switch("Enable Anti-Smoke", self.var_anti_smoke, self._on_anti_smoke_changed)
         self._checkbox_vars["anti_smoke_enabled"] = self.var_anti_smoke
         
-        self._add_spacer()
-        self._add_subtitle("SENSITIVITY")
-        # 從 config 讀取當前值而不是硬編碼預設值
-        self._add_slider("X-Speed", "normal_x_speed", 0.1, 2000, 
-                        float(getattr(config, "normal_x_speed", 0.5)), 
-                        self._on_normal_x_speed_changed)
-        self._add_slider("Y-Speed", "normal_y_speed", 0.1, 2000, 
-                        float(getattr(config, "normal_y_speed", 0.5)), 
-                        self._on_normal_y_speed_changed)
-        self._add_slider("Smoothing", "normalsmooth", 1, 30, 
-                        float(getattr(config, "normalsmooth", 10)), 
-                        self._on_config_normal_smooth_changed)
+        # ── OPERATION MODE (collapsible) ──
+        sec_mode = self._create_collapsible_section(self.content_frame, "Operation Mode", initially_open=True)
+        self.mode_option = self._add_option_row_in_frame(sec_mode, "Mode", ["Normal", "Silent", "NCAF", "WindMouse", "Bezier"], self._on_mode_selected)
+        self._option_widgets["mode"] = self.mode_option
+        current_mode = getattr(config, "mode", "Normal")
+        self.mode_option.set(current_mode)
         
-        self._add_spacer()
-        self._add_subtitle("FOV")
-        self._add_slider("FOV Size", "fovsize", 1, 1000, 
-                        float(getattr(config, "fovsize", 300)), 
-                        self._on_fovsize_changed)
-        self._add_slider("FOV Smooth", "normalsmoothfov", 1, 30, 
-                        float(getattr(config, "normalsmoothfov", 10)), 
-                        self._on_config_normal_smoothfov_changed)
+        # ── MODE PARAMETERS (collapsible) ──
+        sec_params = self._create_collapsible_section(self.content_frame, f"{current_mode} Parameters", initially_open=True)
         
-        self._add_spacer()
-        self._add_subtitle("OFFSET")
-        # X-Offset
-        self._add_slider("X-Offset", "aim_offsetX", -100, 100, 
-                        float(getattr(config, "aim_offsetX", 0)), 
-                        self._on_aim_offsetX_changed)
-        # Y-Offset
-        self._add_slider("Y-Offset", "aim_offsetY", -100, 100, 
-                        float(getattr(config, "aim_offsetY", 0)), 
-                        self._on_aim_offsetY_changed)
+        if current_mode == "Normal":
+            self._add_subtitle_in_frame(sec_params, "SENSITIVITY")
+            self._add_slider_in_frame(sec_params, "X-Speed", "normal_x_speed", 0.1, 2000,
+                                      float(getattr(config, "normal_x_speed", 0.5)),
+                                      self._on_normal_x_speed_changed)
+            self._add_slider_in_frame(sec_params, "Y-Speed", "normal_y_speed", 0.1, 2000,
+                                      float(getattr(config, "normal_y_speed", 0.5)),
+                                      self._on_normal_y_speed_changed)
+            self._add_slider_in_frame(sec_params, "Smoothing", "normalsmooth", 1, 30,
+                                      float(getattr(config, "normalsmooth", 10)),
+                                      self._on_config_normal_smooth_changed)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
+                                      float(getattr(config, "fovsize", 300)),
+                                      self._on_fovsize_changed)
+            self._add_slider_in_frame(sec_params, "FOV Smooth", "normalsmoothfov", 1, 30,
+                                      float(getattr(config, "normalsmoothfov", 10)),
+                                      self._on_config_normal_smoothfov_changed)
         
-        self._add_spacer()
-        self._add_subtitle("AIM TYPE")
-        # Aim Type 選項
-        self.aim_type_option = self._add_option_row("Target", ["head", "body", "nearest"], self._on_aim_type_selected)
+        elif current_mode == "Silent":
+            self._add_subtitle_in_frame(sec_params, "SENSITIVITY")
+            self._add_slider_in_frame(sec_params, "X-Speed", "normal_x_speed", 0.1, 2000,
+                                      float(getattr(config, "normal_x_speed", 0.5)),
+                                      self._on_normal_x_speed_changed)
+            self._add_slider_in_frame(sec_params, "Y-Speed", "normal_y_speed", 0.1, 2000,
+                                      float(getattr(config, "normal_y_speed", 0.5)),
+                                      self._on_normal_y_speed_changed)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
+                                      float(getattr(config, "fovsize", 300)),
+                                      self._on_fovsize_changed)
+        
+        elif current_mode == "NCAF":
+            self._add_subtitle_in_frame(sec_params, "NCAF PARAMETERS")
+            self._add_slider_in_frame(sec_params, "Snap Radius (Outer)", "ncaf_snap_radius", 10, 500,
+                                      float(getattr(config, "ncaf_snap_radius", 150)),
+                                      self._on_ncaf_snap_radius_changed)
+            self._add_slider_in_frame(sec_params, "Near Radius (Inner)", "ncaf_near_radius", 5, 400,
+                                      float(getattr(config, "ncaf_near_radius", 50)),
+                                      self._on_ncaf_near_radius_changed)
+            self._add_slider_in_frame(sec_params, "Alpha (Speed Curve)", "ncaf_alpha", 0.1, 5.0,
+                                      float(getattr(config, "ncaf_alpha", 1.5)),
+                                      self._on_ncaf_alpha_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Snap Boost Factor", "ncaf_snap_boost", 0.01, 2.0,
+                                      float(getattr(config, "ncaf_snap_boost", 0.3)),
+                                      self._on_ncaf_snap_boost_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Max Step", "ncaf_max_step", 1, 200,
+                                      float(getattr(config, "ncaf_max_step", 50)),
+                                      self._on_ncaf_max_step_changed)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
+                                      float(getattr(config, "fovsize", 300)),
+                                      self._on_fovsize_changed)
+        
+        elif current_mode == "WindMouse":
+            self._add_subtitle_in_frame(sec_params, "WINDMOUSE PARAMETERS")
+            self._add_slider_in_frame(sec_params, "Gravity", "wm_gravity", 0.1, 30.0,
+                                      float(getattr(config, "wm_gravity", 9.0)),
+                                      self._on_wm_gravity_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Wind", "wm_wind", 0.1, 20.0,
+                                      float(getattr(config, "wm_wind", 3.0)),
+                                      self._on_wm_wind_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Max Step", "wm_max_step", 1, 100,
+                                      float(getattr(config, "wm_max_step", 15)),
+                                      self._on_wm_max_step_changed)
+            self._add_slider_in_frame(sec_params, "Min Step", "wm_min_step", 0.1, 20,
+                                      float(getattr(config, "wm_min_step", 2)),
+                                      self._on_wm_min_step_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Min Delay (ms)", "wm_min_delay", 0.1, 50,
+                                      float(getattr(config, "wm_min_delay", 0.001)) * 1000,
+                                      self._on_wm_min_delay_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Max Delay (ms)", "wm_max_delay", 0.1, 50,
+                                      float(getattr(config, "wm_max_delay", 0.003)) * 1000,
+                                      self._on_wm_max_delay_changed, is_float=True)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
+                                      float(getattr(config, "fovsize", 300)),
+                                      self._on_fovsize_changed)
+        
+        elif current_mode == "Bezier":
+            self._add_subtitle_in_frame(sec_params, "BEZIER PARAMETERS")
+            self._add_slider_in_frame(sec_params, "Segments", "bezier_segments", 1, 30,
+                                      float(getattr(config, "bezier_segments", 8)),
+                                      self._on_bezier_segments_changed)
+            self._add_slider_in_frame(sec_params, "Ctrl X", "bezier_ctrl_x", 0.0, 100.0,
+                                      float(getattr(config, "bezier_ctrl_x", 16.0)),
+                                      self._on_bezier_ctrl_x_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Ctrl Y", "bezier_ctrl_y", 0.0, 100.0,
+                                      float(getattr(config, "bezier_ctrl_y", 16.0)),
+                                      self._on_bezier_ctrl_y_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Speed", "bezier_speed", 0.1, 10.0,
+                                      float(getattr(config, "bezier_speed", 1.0)),
+                                      self._on_bezier_speed_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Delay (ms)", "bezier_delay", 0.1, 50.0,
+                                      float(getattr(config, "bezier_delay", 0.002)) * 1000,
+                                      self._on_bezier_delay_changed, is_float=True)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
+                                      float(getattr(config, "fovsize", 300)),
+                                      self._on_fovsize_changed)
+        
+        # ── OFFSET (collapsible) ──
+        sec_offset = self._create_collapsible_section(self.content_frame, "Offset", initially_open=False)
+        self._add_slider_in_frame(sec_offset, "X-Offset", "aim_offsetX", -100, 100,
+                                  float(getattr(config, "aim_offsetX", 0)),
+                                  self._on_aim_offsetX_changed)
+        self._add_slider_in_frame(sec_offset, "Y-Offset", "aim_offsetY", -100, 100,
+                                  float(getattr(config, "aim_offsetY", 0)),
+                                  self._on_aim_offsetY_changed)
+        
+        # ── AIM TYPE (collapsible) ──
+        sec_aim_type = self._create_collapsible_section(self.content_frame, "Aim Type", initially_open=False)
+        self.aim_type_option = self._add_option_row_in_frame(sec_aim_type, "Target", ["head", "body", "nearest"], self._on_aim_type_selected)
         self._option_widgets["aim_type"] = self.aim_type_option
-        # 設置當前值
         current_aim_type = getattr(config, "aim_type", "head")
         self.aim_type_option.set(current_aim_type)
         
-        self._add_spacer()
-        self._add_subtitle("ACTIVATION")
-        self.aimbot_button_option = self._add_option_row("Keybind", list(BUTTONS.values()), self._on_aimbot_button_selected)
+        # ── ACTIVATION (collapsible) ──
+        sec_activation = self._create_collapsible_section(self.content_frame, "Activation", initially_open=False)
+        self.aimbot_button_option = self._add_option_row_in_frame(sec_activation, "Keybind", list(BUTTONS.values()), self._on_aimbot_button_selected)
         self._option_widgets["selected_mouse_button"] = self.aimbot_button_option
-        # 設置當前值
         current_btn = getattr(config, "selected_mouse_button", 3)
         self.aimbot_button_option.set(BUTTONS.get(current_btn, BUTTONS[3]))
 
@@ -856,53 +1047,142 @@ class ViewerApp(ctk.CTk):
         self._add_switch("Enable Anti-Smoke", self.var_anti_smoke_sec, self._on_anti_smoke_sec_changed)
         self._checkbox_vars["anti_smoke_enabled_sec"] = self.var_anti_smoke_sec
         
-        self._add_spacer()
-        self._add_subtitle("SENSITIVITY")
-        # 從 config 讀取當前值
-        self._add_slider("X-Speed", "normal_x_speed_sec", 0.1, 2000, 
-                        float(getattr(config, "normal_x_speed_sec", 2)), 
-                        self._on_normal_x_speed_sec_changed)
-        self._add_slider("Y-Speed", "normal_y_speed_sec", 0.1, 2000, 
-                        float(getattr(config, "normal_y_speed_sec", 2)), 
-                        self._on_normal_y_speed_sec_changed)
-        self._add_slider("Smoothing", "normalsmooth_sec", 1, 30, 
-                        float(getattr(config, "normalsmooth_sec", 20)), 
-                        self._on_config_normal_smooth_sec_changed)
+        # ── OPERATION MODE (collapsible) ──
+        sec_mode = self._create_collapsible_section(self.content_frame, "Operation Mode", initially_open=True)
+        self.mode_option_sec = self._add_option_row_in_frame(sec_mode, "Mode", ["Normal", "Silent", "NCAF", "WindMouse", "Bezier"], self._on_mode_sec_selected)
+        self._option_widgets["mode_sec"] = self.mode_option_sec
+        current_mode_sec = getattr(config, "mode_sec", "Normal")
+        self.mode_option_sec.set(current_mode_sec)
         
-        self._add_spacer()
-        self._add_subtitle("FOV")
-        self._add_slider("FOV Size", "fovsize_sec", 1, 1000, 
-                        float(getattr(config, "fovsize_sec", 150)), 
-                        self._on_fovsize_sec_changed)
-        self._add_slider("FOV Smooth", "normalsmoothfov_sec", 1, 30, 
-                        float(getattr(config, "normalsmoothfov_sec", 20)), 
-                        self._on_config_normal_smoothfov_sec_changed)
+        # ── MODE PARAMETERS (collapsible) ──
+        sec_params = self._create_collapsible_section(self.content_frame, f"{current_mode_sec} Parameters", initially_open=True)
         
-        self._add_spacer()
-        self._add_subtitle("OFFSET")
-        # X-Offset
-        self._add_slider("X-Offset", "aim_offsetX_sec", -100, 100, 
-                        float(getattr(config, "aim_offsetX_sec", 0)), 
-                        self._on_aim_offsetX_sec_changed)
-        # Y-Offset
-        self._add_slider("Y-Offset", "aim_offsetY_sec", -100, 100, 
-                        float(getattr(config, "aim_offsetY_sec", 0)), 
-                        self._on_aim_offsetY_sec_changed)
+        if current_mode_sec == "Normal":
+            self._add_subtitle_in_frame(sec_params, "SENSITIVITY")
+            self._add_slider_in_frame(sec_params, "X-Speed", "normal_x_speed_sec", 0.1, 2000,
+                                      float(getattr(config, "normal_x_speed_sec", 2)),
+                                      self._on_normal_x_speed_sec_changed)
+            self._add_slider_in_frame(sec_params, "Y-Speed", "normal_y_speed_sec", 0.1, 2000,
+                                      float(getattr(config, "normal_y_speed_sec", 2)),
+                                      self._on_normal_y_speed_sec_changed)
+            self._add_slider_in_frame(sec_params, "Smoothing", "normalsmooth_sec", 1, 30,
+                                      float(getattr(config, "normalsmooth_sec", 20)),
+                                      self._on_config_normal_smooth_sec_changed)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
+                                      float(getattr(config, "fovsize_sec", 150)),
+                                      self._on_fovsize_sec_changed)
+            self._add_slider_in_frame(sec_params, "FOV Smooth", "normalsmoothfov_sec", 1, 30,
+                                      float(getattr(config, "normalsmoothfov_sec", 20)),
+                                      self._on_config_normal_smoothfov_sec_changed)
         
-        self._add_spacer()
-        self._add_subtitle("AIM TYPE")
-        # Aim Type 選項
-        self.aim_type_option_sec = self._add_option_row("Target", ["head", "body", "nearest"], self._on_aim_type_sec_selected)
+        elif current_mode_sec == "Silent":
+            self._add_subtitle_in_frame(sec_params, "SENSITIVITY")
+            self._add_slider_in_frame(sec_params, "X-Speed", "normal_x_speed_sec", 0.1, 2000,
+                                      float(getattr(config, "normal_x_speed_sec", 2)),
+                                      self._on_normal_x_speed_sec_changed)
+            self._add_slider_in_frame(sec_params, "Y-Speed", "normal_y_speed_sec", 0.1, 2000,
+                                      float(getattr(config, "normal_y_speed_sec", 2)),
+                                      self._on_normal_y_speed_sec_changed)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
+                                      float(getattr(config, "fovsize_sec", 150)),
+                                      self._on_fovsize_sec_changed)
+        
+        elif current_mode_sec == "NCAF":
+            self._add_subtitle_in_frame(sec_params, "NCAF PARAMETERS")
+            self._add_slider_in_frame(sec_params, "Snap Radius (Outer)", "ncaf_snap_radius_sec", 10, 500,
+                                      float(getattr(config, "ncaf_snap_radius_sec", 150)),
+                                      self._on_ncaf_snap_radius_sec_changed)
+            self._add_slider_in_frame(sec_params, "Near Radius (Inner)", "ncaf_near_radius_sec", 5, 400,
+                                      float(getattr(config, "ncaf_near_radius_sec", 50)),
+                                      self._on_ncaf_near_radius_sec_changed)
+            self._add_slider_in_frame(sec_params, "Alpha (Speed Curve)", "ncaf_alpha_sec", 0.1, 5.0,
+                                      float(getattr(config, "ncaf_alpha_sec", 1.5)),
+                                      self._on_ncaf_alpha_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Snap Boost Factor", "ncaf_snap_boost_sec", 0.01, 2.0,
+                                      float(getattr(config, "ncaf_snap_boost_sec", 0.3)),
+                                      self._on_ncaf_snap_boost_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Max Step", "ncaf_max_step_sec", 1, 200,
+                                      float(getattr(config, "ncaf_max_step_sec", 50)),
+                                      self._on_ncaf_max_step_sec_changed)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
+                                      float(getattr(config, "fovsize_sec", 150)),
+                                      self._on_fovsize_sec_changed)
+        
+        elif current_mode_sec == "WindMouse":
+            self._add_subtitle_in_frame(sec_params, "WINDMOUSE PARAMETERS")
+            self._add_slider_in_frame(sec_params, "Gravity", "wm_gravity_sec", 0.1, 30.0,
+                                      float(getattr(config, "wm_gravity_sec", 9.0)),
+                                      self._on_wm_gravity_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Wind", "wm_wind_sec", 0.1, 20.0,
+                                      float(getattr(config, "wm_wind_sec", 3.0)),
+                                      self._on_wm_wind_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Max Step", "wm_max_step_sec", 1, 100,
+                                      float(getattr(config, "wm_max_step_sec", 15)),
+                                      self._on_wm_max_step_sec_changed)
+            self._add_slider_in_frame(sec_params, "Min Step", "wm_min_step_sec", 0.1, 20,
+                                      float(getattr(config, "wm_min_step_sec", 2)),
+                                      self._on_wm_min_step_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Min Delay (ms)", "wm_min_delay_sec", 0.1, 50,
+                                      float(getattr(config, "wm_min_delay_sec", 0.001)) * 1000,
+                                      self._on_wm_min_delay_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Max Delay (ms)", "wm_max_delay_sec", 0.1, 50,
+                                      float(getattr(config, "wm_max_delay_sec", 0.003)) * 1000,
+                                      self._on_wm_max_delay_sec_changed, is_float=True)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
+                                      float(getattr(config, "fovsize_sec", 150)),
+                                      self._on_fovsize_sec_changed)
+        
+        elif current_mode_sec == "Bezier":
+            self._add_subtitle_in_frame(sec_params, "BEZIER PARAMETERS")
+            self._add_slider_in_frame(sec_params, "Segments", "bezier_segments_sec", 1, 30,
+                                      float(getattr(config, "bezier_segments_sec", 8)),
+                                      self._on_bezier_segments_sec_changed)
+            self._add_slider_in_frame(sec_params, "Ctrl X", "bezier_ctrl_x_sec", 0.0, 100.0,
+                                      float(getattr(config, "bezier_ctrl_x_sec", 16.0)),
+                                      self._on_bezier_ctrl_x_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Ctrl Y", "bezier_ctrl_y_sec", 0.0, 100.0,
+                                      float(getattr(config, "bezier_ctrl_y_sec", 16.0)),
+                                      self._on_bezier_ctrl_y_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Speed", "bezier_speed_sec", 0.1, 10.0,
+                                      float(getattr(config, "bezier_speed_sec", 1.0)),
+                                      self._on_bezier_speed_sec_changed, is_float=True)
+            self._add_slider_in_frame(sec_params, "Delay (ms)", "bezier_delay_sec", 0.1, 50.0,
+                                      float(getattr(config, "bezier_delay_sec", 0.002)) * 1000,
+                                      self._on_bezier_delay_sec_changed, is_float=True)
+            self._add_spacer_in_frame(sec_params)
+            self._add_subtitle_in_frame(sec_params, "FOV")
+            self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
+                                      float(getattr(config, "fovsize_sec", 150)),
+                                      self._on_fovsize_sec_changed)
+        
+        # ── OFFSET (collapsible) ──
+        sec_offset = self._create_collapsible_section(self.content_frame, "Offset", initially_open=False)
+        self._add_slider_in_frame(sec_offset, "X-Offset", "aim_offsetX_sec", -100, 100,
+                                  float(getattr(config, "aim_offsetX_sec", 0)),
+                                  self._on_aim_offsetX_sec_changed)
+        self._add_slider_in_frame(sec_offset, "Y-Offset", "aim_offsetY_sec", -100, 100,
+                                  float(getattr(config, "aim_offsetY_sec", 0)),
+                                  self._on_aim_offsetY_sec_changed)
+        
+        # ── AIM TYPE (collapsible) ──
+        sec_aim_type = self._create_collapsible_section(self.content_frame, "Aim Type", initially_open=False)
+        self.aim_type_option_sec = self._add_option_row_in_frame(sec_aim_type, "Target", ["head", "body", "nearest"], self._on_aim_type_sec_selected)
         self._option_widgets["aim_type_sec"] = self.aim_type_option_sec
-        # 設置當前值
         current_aim_type_sec = getattr(config, "aim_type_sec", "head")
         self.aim_type_option_sec.set(current_aim_type_sec)
         
-        self._add_spacer()
-        self._add_subtitle("ACTIVATION")
-        self.aimbot_button_option_sec = self._add_option_row("Keybind", list(BUTTONS.values()), self._on_aimbot_button_sec_selected)
+        # ── ACTIVATION (collapsible) ──
+        sec_activation = self._create_collapsible_section(self.content_frame, "Activation", initially_open=False)
+        self.aimbot_button_option_sec = self._add_option_row_in_frame(sec_activation, "Keybind", list(BUTTONS.values()), self._on_aimbot_button_sec_selected)
         self._option_widgets["selected_mouse_button_sec"] = self.aimbot_button_option_sec
-        # 設置當前值
         current_btn_sec = getattr(config, "selected_mouse_button_sec", 2)
         self.aimbot_button_option_sec.set(BUTTONS.get(current_btn_sec, BUTTONS[2]))
 
@@ -1224,6 +1504,115 @@ class ViewerApp(ctk.CTk):
     def _add_spacer_in_frame(self, parent):
         """在指定 frame 中添加間距"""
         ctk.CTkFrame(parent, height=1, fg_color="transparent").pack(pady=5)
+
+    def _create_collapsible_section(self, parent, title, initially_open=True):
+        """
+        建立可展開/收起的 section。
+        
+        Args:
+            parent: 父容器
+            title: section 標題
+            initially_open: 是否預設展開
+            
+        Returns:
+            content_frame: section 的內容容器（將子元件加入此 frame）
+        """
+        container = ctk.CTkFrame(parent, fg_color="transparent")
+        container.pack(fill="x", pady=(5, 0))
+        
+        content = ctk.CTkFrame(container, fg_color="transparent")
+        
+        is_open = [initially_open]
+        arrow_text = "▼" if initially_open else "▶"
+        
+        header = ctk.CTkFrame(container, fg_color=COLOR_SURFACE, corner_radius=4, height=30)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        
+        arrow_label = ctk.CTkLabel(
+            header, text=arrow_text, font=("Roboto", 10), text_color=COLOR_TEXT_DIM,
+            width=20
+        )
+        arrow_label.pack(side="left", padx=(8, 0))
+        
+        title_label = ctk.CTkLabel(
+            header, text=title.upper(), font=("Roboto", 10, "bold"), text_color=COLOR_TEXT_DIM
+        )
+        title_label.pack(side="left", padx=(4, 0))
+        
+        def toggle(_event=None):
+            if is_open[0]:
+                content.pack_forget()
+                arrow_label.configure(text="▶")
+                is_open[0] = False
+            else:
+                content.pack(fill="x", padx=(8, 0), pady=(2, 0))
+                arrow_label.configure(text="▼")
+                is_open[0] = True
+        
+        header.bind("<Button-1>", toggle)
+        arrow_label.bind("<Button-1>", toggle)
+        title_label.bind("<Button-1>", toggle)
+        
+        if initially_open:
+            content.pack(fill="x", padx=(8, 0), pady=(2, 0))
+        
+        return content
+
+    def _add_slider_in_frame(self, parent, text, key, min_val, max_val, init_val, command, is_float=False):
+        """在指定 parent frame 中添加 slider（與 _add_slider 邏輯一致）"""
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", pady=2)
+        
+        header = ctk.CTkFrame(frame, fg_color="transparent")
+        header.pack(fill="x")
+        ctk.CTkLabel(header, text=text, font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+        
+        val_str = f"{init_val:.2f}" if is_float else f"{int(init_val)}"
+        val_entry = ctk.CTkEntry(
+            header, width=80, height=25, fg_color=COLOR_SURFACE,
+            border_width=1, border_color=COLOR_BORDER,
+            text_color=COLOR_TEXT, font=FONT_MAIN, justify="center"
+        )
+        val_entry.insert(0, val_str)
+        val_entry.pack(side="right")
+        
+        slider = ctk.CTkSlider(
+            frame, from_=min_val, to=max_val, number_of_steps=100,
+            fg_color=COLOR_BORDER, progress_color=COLOR_TEXT,
+            button_color=COLOR_TEXT, button_hover_color=COLOR_ACCENT,
+            height=10,
+            command=lambda v: self._on_slider_changed(v, val_entry, key, command, is_float, slider, min_val, max_val)
+        )
+        slider.set(init_val)
+        slider.pack(fill="x", pady=(2, 5))
+        
+        val_entry.bind("<Return>", lambda e: self._on_entry_changed(val_entry, slider, key, command, is_float, min_val, max_val))
+        val_entry.bind("<FocusOut>", lambda e: self._on_entry_changed(val_entry, slider, key, command, is_float, min_val, max_val))
+        
+        self._register_slider(key, slider, val_entry, min_val, max_val, is_float)
+
+    def _add_option_row_in_frame(self, parent, label_text, values, command):
+        """在指定 parent frame 中添加 OptionMenu（與 _add_option_row 邏輯一致）"""
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", pady=5)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_columnconfigure(1, weight=0)
+        ctk.CTkLabel(frame, text=label_text, font=FONT_MAIN, text_color=COLOR_TEXT).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        menu = self._add_option_menu(values, command, parent=frame)
+        menu.grid(row=0, column=1, sticky="e")
+        return menu
+
+    def _add_switch_in_frame(self, parent, text, variable, command):
+        """在指定 parent frame 中添加 Switch"""
+        switch = ctk.CTkSwitch(
+            parent, text=text, variable=variable, command=command,
+            progress_color=COLOR_TEXT, fg_color=COLOR_BORDER,
+            button_color=COLOR_TEXT, button_hover_color=COLOR_TEXT,
+            font=FONT_MAIN, text_color=COLOR_TEXT
+        )
+        switch.pack(anchor="w", pady=5)
+        return switch
 
     def _add_spacer(self):
         ctk.CTkFrame(self.content_frame, height=1, fg_color="transparent").pack(pady=5)
@@ -1614,9 +2003,7 @@ class ViewerApp(ctk.CTk):
             # 這會確保所有 slider、checkbox、option menu 都顯示正確的值
             self._handle_nav_click("General", self._show_general_tab)
             
-            print("[UI] Configuration loaded and applied to all UI elements")
-            print(f"[UI] Loaded values - Aim: {config.enableaim}, TB: {config.enabletb}, Mode: {config.mode}, Color: {config.color}")
-            print(f"[UI] Display settings - OpenCV: {config.show_opencv_windows}, Mode Text: {config.show_mode_text}")
+            print("[UI] Configuration loaded")
         except Exception as e:
             print(f"[UI] Init load error: {e}")
     
@@ -1647,6 +2034,7 @@ class ViewerApp(ctk.CTk):
             self.tracker.in_game_sens = config.in_game_sens
             self.tracker.color = config.color
             self.tracker.mode = config.mode
+            self.tracker.mode_sec = getattr(config, "mode_sec", "Normal")
             
             # Sec Aimbot
             self.tracker.normal_x_speed_sec = config.normal_x_speed_sec
@@ -1656,7 +2044,6 @@ class ViewerApp(ctk.CTk):
             self.tracker.fovsize_sec = config.fovsize_sec
             self.tracker.selected_mouse_button_sec = config.selected_mouse_button_sec
             
-            print("[UI] Config synced to tracker")
         except Exception as e:
             print(f"[UI] Sync error: {e}")
 
@@ -1697,7 +2084,6 @@ class ViewerApp(ctk.CTk):
             self.tracker.model, self.tracker.class_names = reload_model()
             
             msg = f"Loaded: {config_name}" if config_name else "Loaded config"
-            print(f"[UI] {msg}")
             try:
                 self._log_config(f"{msg}")
             except:
@@ -1811,17 +2197,9 @@ class ViewerApp(ctk.CTk):
             config.udp_ip = ip
             config.udp_port = port
             
-            print(f"[UI] Connecting to UDP {ip}:{port}...")
             success, error = self.capture.connect_udp(ip, port)
             if success:
                 self.status_indicator.configure(text=f"● Connected: UDP {ip}:{port}", text_color=COLOR_TEXT)
-                print(f"[UI] UDP connection successful")
-                
-                # 檢查連接狀態
-                import time
-                time.sleep(0.5)  # 等待連接穩定
-                is_connected = self.capture.is_connected()
-                print(f"[UI] UDP is_connected check: {is_connected}")
             else:
                 self.status_indicator.configure(text=f"● Connection failed: {error}", text_color=COLOR_DANGER)
                 print(f"[UI] UDP connection failed: {error}")
@@ -1858,20 +2236,118 @@ class ViewerApp(ctk.CTk):
             # 更新中心點顯示
             self._update_capture_card_center_display()
             
-            print(f"[UI] Connecting to CaptureCard...")
             success, error = self.capture.connect_capture_card(config)
             if success:
                 self.status_indicator.configure(text="● Connected: CaptureCard", text_color=COLOR_TEXT)
-                print(f"[UI] CaptureCard connection successful")
-                
-                # 檢查連接狀態
-                import time
-                time.sleep(0.5)  # 等待連接穩定
-                is_connected = self.capture.is_connected()
-                print(f"[UI] CaptureCard is_connected check: {is_connected}")
             else:
                 self.status_indicator.configure(text=f"● Connection failed: {error}", text_color=COLOR_DANGER)
                 print(f"[UI] CaptureCard connection failed: {error}")
+
+    # --- MSS Callbacks ---
+    def _on_mss_monitor_changed(self, event=None):
+        """MSS Monitor Index 改變"""
+        if hasattr(self, 'mss_monitor_entry') and self.mss_monitor_entry.winfo_exists():
+            try:
+                val = int(self.mss_monitor_entry.get())
+                config.mss_monitor_index = val
+            except ValueError:
+                pass
+    
+    def _on_mss_fov_x_slider_changed(self, val):
+        """MSS FOV X 滑條改變"""
+        int_val = int(round(val))
+        config.mss_fov_x = int_val
+        if hasattr(self, 'mss_fov_x_entry') and self.mss_fov_x_entry.winfo_exists():
+            self.mss_fov_x_entry.delete(0, "end")
+            self.mss_fov_x_entry.insert(0, str(int_val))
+        self._update_mss_capture_info()
+        # 即時更新已連接的 MSS 擷取器
+        if self.capture.mss_capture and self.capture.mss_capture.is_connected():
+            fov_y = int(getattr(config, "mss_fov_y", 320))
+            self.capture.mss_capture.set_fov(int_val, fov_y)
+    
+    def _on_mss_fov_x_entry_changed(self, event=None):
+        """MSS FOV X 輸入框改變"""
+        if hasattr(self, 'mss_fov_x_entry') and self.mss_fov_x_entry.winfo_exists():
+            try:
+                val = int(self.mss_fov_x_entry.get())
+                val = max(16, min(1920, val))
+                config.mss_fov_x = val
+                if hasattr(self, 'mss_fov_x_slider'):
+                    self.mss_fov_x_slider.set(val)
+                self._update_mss_capture_info()
+                if self.capture.mss_capture and self.capture.mss_capture.is_connected():
+                    fov_y = int(getattr(config, "mss_fov_y", 320))
+                    self.capture.mss_capture.set_fov(val, fov_y)
+            except ValueError:
+                pass
+    
+    def _on_mss_fov_y_slider_changed(self, val):
+        """MSS FOV Y 滑條改變"""
+        int_val = int(round(val))
+        config.mss_fov_y = int_val
+        if hasattr(self, 'mss_fov_y_entry') and self.mss_fov_y_entry.winfo_exists():
+            self.mss_fov_y_entry.delete(0, "end")
+            self.mss_fov_y_entry.insert(0, str(int_val))
+        self._update_mss_capture_info()
+        if self.capture.mss_capture and self.capture.mss_capture.is_connected():
+            fov_x = int(getattr(config, "mss_fov_x", 320))
+            self.capture.mss_capture.set_fov(fov_x, int_val)
+    
+    def _on_mss_fov_y_entry_changed(self, event=None):
+        """MSS FOV Y 輸入框改變"""
+        if hasattr(self, 'mss_fov_y_entry') and self.mss_fov_y_entry.winfo_exists():
+            try:
+                val = int(self.mss_fov_y_entry.get())
+                val = max(16, min(1080, val))
+                config.mss_fov_y = val
+                if hasattr(self, 'mss_fov_y_slider'):
+                    self.mss_fov_y_slider.set(val)
+                self._update_mss_capture_info()
+                if self.capture.mss_capture and self.capture.mss_capture.is_connected():
+                    fov_x = int(getattr(config, "mss_fov_x", 320))
+                    self.capture.mss_capture.set_fov(fov_x, val)
+            except ValueError:
+                pass
+    
+    def _update_mss_capture_info(self):
+        """更新 MSS 擷取範圍資訊顯示"""
+        if hasattr(self, 'mss_capture_info_label') and self.mss_capture_info_label.winfo_exists():
+            fov_x = int(getattr(config, "mss_fov_x", 320))
+            fov_y = int(getattr(config, "mss_fov_y", 320))
+            total_w = fov_x * 2
+            total_h = fov_y * 2
+            self.mss_capture_info_label.configure(
+                text=f"Capture area: {total_w} x {total_h} px (centered on screen)"
+            )
+    
+    def _connect_mss(self):
+        """連接 MSS 螢幕擷取"""
+        if self.capture.mode == "MSS":
+            monitor_index = int(getattr(config, "mss_monitor_index", 1))
+            fov_x = int(getattr(config, "mss_fov_x", 320))
+            fov_y = int(getattr(config, "mss_fov_y", 320))
+            
+            # 從輸入框更新
+            if hasattr(self, 'mss_monitor_entry') and self.mss_monitor_entry.winfo_exists():
+                try:
+                    monitor_index = int(self.mss_monitor_entry.get())
+                    config.mss_monitor_index = monitor_index
+                except ValueError:
+                    pass
+            
+            success, error = self.capture.connect_mss(monitor_index, fov_x, fov_y)
+            if success:
+                self.status_indicator.configure(
+                    text=f"● Connected: MSS (Monitor {monitor_index})",
+                    text_color=COLOR_TEXT
+                )
+            else:
+                self.status_indicator.configure(
+                    text=f"● Connection failed: {error}",
+                    text_color=COLOR_DANGER
+                )
+                print(f"[UI] MSS connection failed: {error}")
 
     def _update_connection_status_loop(self):
         is_conn = self.capture.is_connected()
@@ -1908,7 +2384,25 @@ class ViewerApp(ctk.CTk):
             elif self.capture.mode == "NDI" and self.capture.is_connected():
                 # NDI 模式：從 tracker 獲取簡單的 FPS 信息
                 if hasattr(self.tracker, '_frame_count'):
-                    # 計算 FPS（基於最近的幀計數）
+                    self.fps_label.configure(text=f"FPS: ~{self.tracker._target_fps}")
+                    self.decode_delay_label.configure(text="Decode: N/A")
+                    self.total_delay_label.configure(text="Delay: N/A")
+            elif self.capture.mode == "MSS" and self.capture.is_connected():
+                # MSS 模式：從 mss_capture 獲取效能統計
+                if self.capture.mss_capture:
+                    stats = self.capture.mss_capture.get_performance_stats()
+                    fps = stats.get('current_fps', 0)
+                    grab_delay = stats.get('grab_delay_ms', 0)
+                    self.fps_label.configure(text=f"FPS: {fps:.1f}")
+                    self.decode_delay_label.configure(text=f"Grab: {grab_delay:.1f} ms")
+                    self.total_delay_label.configure(text=f"Delay: {grab_delay:.1f} ms")
+                else:
+                    self.fps_label.configure(text="FPS: --")
+                    self.decode_delay_label.configure(text="Grab: -- ms")
+                    self.total_delay_label.configure(text="Delay: -- ms")
+            elif self.capture.mode == "CaptureCard" and self.capture.is_connected():
+                # CaptureCard 模式：顯示基本 FPS 信息
+                if hasattr(self.tracker, '_frame_count'):
                     self.fps_label.configure(text=f"FPS: ~{self.tracker._target_fps}")
                     self.decode_delay_label.configure(text="Decode: N/A")
                     self.total_delay_label.configure(text="Delay: N/A")
@@ -1968,14 +2462,12 @@ class ViewerApp(ctk.CTk):
             config.fovsize_sec = self.tracker.fovsize_sec
             config.selected_mouse_button_sec = self.tracker.selected_mouse_button_sec
             
-            print("[UI] Settings synced from tracker to config before save")
         except Exception as e:
             print(f"[UI] Sync before save error: {e}")
         
         # 保存當前配置
         try:
             config.save_to_file()
-            print("[UI] Configuration auto-saved on exit")
         except Exception as e:
             print(f"[UI] Failed to auto-save configuration: {e}")
         
@@ -2004,56 +2496,45 @@ class ViewerApp(ctk.CTk):
     def _on_normal_x_speed_changed(self, val): 
         config.normal_x_speed = val
         self.tracker.normal_x_speed = val
-        print(f"[Config] X-Speed: {val}")
     
     def _on_normal_y_speed_changed(self, val): 
         config.normal_y_speed = val
         self.tracker.normal_y_speed = val
-        print(f"[Config] Y-Speed: {val}")
     
     def _on_config_in_game_sens_changed(self, val): 
         config.in_game_sens = val
         self.tracker.in_game_sens = val
-        print(f"[Config] In-Game Sensitivity: {val}")
     
     def _on_config_normal_smooth_changed(self, val): 
         config.normalsmooth = val
         self.tracker.normalsmooth = val
-        print(f"[Config] Smoothing: {val}")
     
     def _on_config_normal_smoothfov_changed(self, val): 
         config.normalsmoothfov = val
         self.tracker.normalsmoothfov = val
-        print(f"[Config] FOV Smooth: {val}")
     
     def _on_fovsize_changed(self, val): 
         config.fovsize = val
         self.tracker.fovsize = val
-        print(f"[Config] FOV Size: {val}")
     
     def _on_aim_offsetX_changed(self, val):
         config.aim_offsetX = val
-        print(f"[Config] Aim X-Offset: {val}")
     
     def _on_aim_offsetY_changed(self, val):
         config.aim_offsetY = val
-        print(f"[Config] Aim Y-Offset: {val}")
     
     def _on_aim_type_selected(self, val):
         config.aim_type = val
-        print(f"[Config] Aim Type: {val}")
     
     def _on_tbdelay_range_changed(self, min_val, max_val):
         """Triggerbot Delay 範圍改變"""
         config.tbdelay_min = min_val
         config.tbdelay_max = max_val
-        print(f"[Config] Triggerbot Delay Range: {min_val:.2f}s ~ {max_val:.2f}s")
     
     def _on_tbhold_range_changed(self, min_val, max_val):
         """Triggerbot Hold 範圍改變"""
         config.tbhold_min = min_val
         config.tbhold_max = max_val
-        print(f"[Config] Triggerbot Hold Range: {min_val}ms ~ {max_val}ms")
     
     def _on_tbcooldown_range_changed(self, min_val, max_val):
         """Triggerbot Cooldown 範圍改變"""
@@ -2062,7 +2543,6 @@ class ViewerApp(ctk.CTk):
         if hasattr(self, 'tracker'):
             self.tracker.tbcooldown_min = min_val
             self.tracker.tbcooldown_max = max_val
-        print(f"[Config] Triggerbot Cooldown Range: {min_val:.2f}s ~ {max_val:.2f}s")
     
     def _on_tbburst_count_range_changed(self, min_val, max_val):
         """Triggerbot Burst Count 範圍改變"""
@@ -2071,7 +2551,6 @@ class ViewerApp(ctk.CTk):
         if hasattr(self, 'tracker'):
             self.tracker.tbburst_count_min = int(min_val)
             self.tracker.tbburst_count_max = int(max_val)
-        print(f"[Config] Triggerbot Burst Count Range: {int(min_val)} ~ {int(max_val)}")
     
     def _on_tbburst_interval_range_changed(self, min_val, max_val):
         """Triggerbot Burst Interval 範圍改變"""
@@ -2080,119 +2559,217 @@ class ViewerApp(ctk.CTk):
         if hasattr(self, 'tracker'):
             self.tracker.tbburst_interval_min = min_val
             self.tracker.tbburst_interval_max = max_val
-        print(f"[Config] Triggerbot Burst Interval Range: {min_val:.2f}ms ~ {max_val:.2f}ms")
     
     def _on_tbfovsize_changed(self, val): 
         config.tbfovsize = val
         self.tracker.tbfovsize = val
-        print(f"[Config] Triggerbot FOV Size: {val}")
     
     def _on_tbhold_changed(self, val):
         config.tbhold = val
         self.tracker.tbhold = val
-        print(f"[Config] Triggerbot Hold: {val}ms")
     
     def _on_enableaim_changed(self): 
         config.enableaim = self.var_enableaim.get()
-        print(f"[Config] Aimbot Enabled: {config.enableaim}")
     
     def _on_anti_smoke_changed(self):
         """Main Aimbot Anti-Smoke 開關回調"""
         config.anti_smoke_enabled = self.var_anti_smoke.get()
-        # 更新 tracker 中的 anti-smoke detector
         if hasattr(self.tracker, 'anti_smoke_detector'):
             self.tracker.anti_smoke_detector.set_enabled(config.anti_smoke_enabled)
-        print(f"[Config] Main Aimbot Anti-Smoke: {config.anti_smoke_enabled}")
     
     def _on_enabletb_changed(self): 
         config.enabletb = self.var_enabletb.get()
-        print(f"[Config] Triggerbot Enabled: {config.enabletb}")
     
     def _on_enablercs_changed(self):
         """RCS 開關改變"""
         config.enablercs = self.var_enablercs.get()
-        print(f"[Config] RCS Enabled: {config.enablercs}")
     
     def _on_rcs_pull_speed_changed(self, val):
         """RCS Pull Speed 改變"""
         config.rcs_pull_speed = int(val)
         if hasattr(self, 'tracker'):
             self.tracker.rcs_pull_speed = int(val)
-        print(f"[Config] RCS Pull Speed: {int(val)}")
     
     def _on_rcs_activation_delay_changed(self, val):
         """RCS Activation Delay 改變"""
         config.rcs_activation_delay = int(val)
         if hasattr(self, 'tracker'):
             self.tracker.rcs_activation_delay = int(val)
-        print(f"[Config] RCS Activation Delay: {int(val)}ms")
     
     def _on_rcs_rapid_click_threshold_changed(self, val):
         """RCS Rapid Click Threshold 改變"""
         config.rcs_rapid_click_threshold = int(val)
         if hasattr(self, 'tracker'):
             self.tracker.rcs_rapid_click_threshold = int(val)
-        print(f"[Config] RCS Rapid Click Threshold: {int(val)}ms")
     
     def _on_color_selected(self, val): 
         config.color = val
         self.tracker.color = val
-        print(f"[Config] Target Color: {val}")
     
     def _on_mode_selected(self, val): 
         config.mode = val
         self.tracker.mode = val
-        print(f"[Config] Operation Mode: {val}")
+        # 重新渲染 Aimbot tab 以顯示對應模式的參數
+        self._show_aimbot_tab()
+        # 重新高亮正確的導航按鈕
+        for name, btn in self.nav_buttons.items():
+            if name == "Aimbot":
+                btn.configure(text_color=COLOR_ACCENT)
+            else:
+                btn.configure(text_color=COLOR_TEXT_DIM)
+    
+    def _on_mode_sec_selected(self, val):
+        config.mode_sec = val
+        self.tracker.mode_sec = val
+        # 重新渲染 Sec Aimbot tab 以顯示對應模式的參數
+        self._show_sec_aimbot_tab()
+        # 重新高亮正確的導航按鈕
+        for name, btn in self.nav_buttons.items():
+            if name == "Sec Aimbot":
+                btn.configure(text_color=COLOR_ACCENT)
+            else:
+                btn.configure(text_color=COLOR_TEXT_DIM)
     
     # Sec Aimbot Callbacks
     def _on_normal_x_speed_sec_changed(self, val): 
         config.normal_x_speed_sec = val
         self.tracker.normal_x_speed_sec = val
-        print(f"[Config] Sec X-Speed: {val}")
     
     def _on_normal_y_speed_sec_changed(self, val): 
         config.normal_y_speed_sec = val
         self.tracker.normal_y_speed_sec = val
-        print(f"[Config] Sec Y-Speed: {val}")
     
     def _on_config_normal_smooth_sec_changed(self, val): 
         config.normalsmooth_sec = val
         self.tracker.normalsmooth_sec = val
-        print(f"[Config] Sec Smoothing: {val}")
     
     def _on_config_normal_smoothfov_sec_changed(self, val): 
         config.normalsmoothfov_sec = val
         self.tracker.normalsmoothfov_sec = val
-        print(f"[Config] Sec FOV Smooth: {val}")
     
     def _on_fovsize_sec_changed(self, val): 
         config.fovsize_sec = val
         self.tracker.fovsize_sec = val
-        print(f"[Config] Sec FOV Size: {val}")
     
     def _on_aim_offsetX_sec_changed(self, val):
         config.aim_offsetX_sec = val
-        print(f"[Config] Sec Aim X-Offset: {val}")
     
     def _on_aim_offsetY_sec_changed(self, val):
         config.aim_offsetY_sec = val
-        print(f"[Config] Sec Aim Y-Offset: {val}")
     
     def _on_aim_type_sec_selected(self, val):
         config.aim_type_sec = val
-        print(f"[Config] Sec Aim Type: {val}")
     
     def _on_enableaim_sec_changed(self): 
         config.enableaim_sec = self.var_enableaim_sec.get()
-        print(f"[Config] Sec Aimbot Enabled: {config.enableaim_sec}")
     
     def _on_anti_smoke_sec_changed(self):
         """Secondary Aimbot Anti-Smoke 開關回調"""
         config.anti_smoke_enabled_sec = self.var_anti_smoke_sec.get()
-        # 更新 tracker 中的 sec anti-smoke detector
         if hasattr(self.tracker, 'anti_smoke_detector_sec'):
             self.tracker.anti_smoke_detector_sec.set_enabled(config.anti_smoke_enabled_sec)
-        print(f"[Config] Sec Aimbot Anti-Smoke: {config.anti_smoke_enabled_sec}")
+    
+    # === NCAF Callbacks (Main) ===
+    def _on_ncaf_near_radius_changed(self, val):
+        config.ncaf_near_radius = val
+    
+    def _on_ncaf_snap_radius_changed(self, val):
+        config.ncaf_snap_radius = val
+    
+    def _on_ncaf_alpha_changed(self, val):
+        config.ncaf_alpha = val
+    
+    def _on_ncaf_snap_boost_changed(self, val):
+        config.ncaf_snap_boost = val
+    
+    def _on_ncaf_max_step_changed(self, val):
+        config.ncaf_max_step = val
+    
+    # === NCAF Callbacks (Sec) ===
+    def _on_ncaf_near_radius_sec_changed(self, val):
+        config.ncaf_near_radius_sec = val
+    
+    def _on_ncaf_snap_radius_sec_changed(self, val):
+        config.ncaf_snap_radius_sec = val
+    
+    def _on_ncaf_alpha_sec_changed(self, val):
+        config.ncaf_alpha_sec = val
+    
+    def _on_ncaf_snap_boost_sec_changed(self, val):
+        config.ncaf_snap_boost_sec = val
+    
+    def _on_ncaf_max_step_sec_changed(self, val):
+        config.ncaf_max_step_sec = val
+    
+    # === WindMouse Callbacks (Main) ===
+    def _on_wm_gravity_changed(self, val):
+        config.wm_gravity = val
+    
+    def _on_wm_wind_changed(self, val):
+        config.wm_wind = val
+    
+    def _on_wm_max_step_changed(self, val):
+        config.wm_max_step = val
+    
+    def _on_wm_min_step_changed(self, val):
+        config.wm_min_step = val
+    
+    def _on_wm_min_delay_changed(self, val):
+        config.wm_min_delay = val / 1000.0  # ms → s
+    
+    def _on_wm_max_delay_changed(self, val):
+        config.wm_max_delay = val / 1000.0  # ms → s
+    
+    # === WindMouse Callbacks (Sec) ===
+    def _on_wm_gravity_sec_changed(self, val):
+        config.wm_gravity_sec = val
+    
+    def _on_wm_wind_sec_changed(self, val):
+        config.wm_wind_sec = val
+    
+    def _on_wm_max_step_sec_changed(self, val):
+        config.wm_max_step_sec = val
+    
+    def _on_wm_min_step_sec_changed(self, val):
+        config.wm_min_step_sec = val
+    
+    def _on_wm_min_delay_sec_changed(self, val):
+        config.wm_min_delay_sec = val / 1000.0  # ms → s
+    
+    def _on_wm_max_delay_sec_changed(self, val):
+        config.wm_max_delay_sec = val / 1000.0  # ms → s
+    
+    # --- Bezier Callbacks (Main) ---
+    def _on_bezier_segments_changed(self, val):
+        config.bezier_segments = int(val)
+    
+    def _on_bezier_ctrl_x_changed(self, val):
+        config.bezier_ctrl_x = float(val)
+    
+    def _on_bezier_ctrl_y_changed(self, val):
+        config.bezier_ctrl_y = float(val)
+    
+    def _on_bezier_speed_changed(self, val):
+        config.bezier_speed = float(val)
+    
+    def _on_bezier_delay_changed(self, val):
+        config.bezier_delay = float(val) / 1000.0  # ms → s
+    
+    # --- Bezier Callbacks (Sec) ---
+    def _on_bezier_segments_sec_changed(self, val):
+        config.bezier_segments_sec = int(val)
+    
+    def _on_bezier_ctrl_x_sec_changed(self, val):
+        config.bezier_ctrl_x_sec = float(val)
+    
+    def _on_bezier_ctrl_y_sec_changed(self, val):
+        config.bezier_ctrl_y_sec = float(val)
+    
+    def _on_bezier_speed_sec_changed(self, val):
+        config.bezier_speed_sec = float(val)
+    
+    def _on_bezier_delay_sec_changed(self, val):
+        config.bezier_delay_sec = float(val) / 1000.0  # ms → s
     
     def _on_aimbot_button_selected(self, val):
         for k, name in BUTTONS.items():
@@ -2228,7 +2805,6 @@ class ViewerApp(ctk.CTk):
                     self.debug_mouse_frame.pack_forget()
                 except Exception:
                     pass
-        print(f"[Debug] Mouse Input Debug: {enabled}")
     
     def _update_mouse_input_debug(self):
         """定期更新滑鼠輸入調試顯示"""
@@ -2270,7 +2846,6 @@ class ViewerApp(ctk.CTk):
                 self.debug_button_widgets[button_idx]["count_label"].configure(text="Count: 0")
             except Exception:
                 pass
-        print(f"[Debug] Reset button {button_idx} count")
     
     def _reset_all_button_counts(self):
         """重置所有按鈕的計數"""
@@ -2281,7 +2856,6 @@ class ViewerApp(ctk.CTk):
                     widgets["count_label"].configure(text="Count: 0")
                 except Exception:
                     pass
-        print("[Debug] Reset all button counts")
     
     def _update_debug_log(self):
         """定期更新 Debug 日誌顯示"""
@@ -2348,20 +2922,17 @@ class ViewerApp(ctk.CTk):
                 self.debug_log_count_label.configure(text="Log Count: 0")
             except Exception:
                 pass
-        print("[Debug] Logs cleared")
     
     def _on_aimbot_button_sec_selected(self, val):
         for k, name in BUTTONS.items():
             if name == val:
                 config.selected_mouse_button_sec = k
                 self.tracker.selected_mouse_button_sec = k
-                print(f"[Config] Sec Aim Key: {val}")
                 break
     
     def _on_button_mask_enabled_changed(self):
         """Button Mask 總開關回調"""
         config.button_mask_enabled = self.var_button_mask_enabled.get()
-        print(f"[Config] Button Mask Enabled: {config.button_mask_enabled}")
     
     def _on_button_mask_changed(self, key, var):
         """單個按鈕 Mask 狀態改變回調"""
@@ -2374,7 +2945,6 @@ class ViewerApp(ctk.CTk):
             "mask_side4_button": "Side 4 (S4)",
             "mask_side5_button": "Side 5 (S5)"
         }
-        print(f"[Config] Button Mask - {button_names.get(key, key)}: {value}")
     
     def _check_for_updates(self):
         """Check for updates in background"""
@@ -2410,6 +2980,9 @@ class SettingsWindow(ctk.CTkToplevel):
         # 設置為模態視窗
         self.transient(parent)
         self.grab_set()
+        
+        # 關閉視窗時自動保存設置
+        self.protocol("WM_DELETE_WINDOW", self._on_save)
         
         # 臨時儲存設置（用於取消）
         self.temp_settings = {
@@ -2606,18 +3179,9 @@ class SettingsWindow(ctk.CTkToplevel):
         # 保存到文件
         config.save_to_file()
         
-        # 打印確認
-        print(f"[Settings] OpenCV Windows: {config.show_opencv_windows}")
-        print(f"[Settings] OpenCV Windows Detail - MASK:{config.show_opencv_mask} Detection:{config.show_opencv_detection} ROI:{config.show_opencv_roi} TB Mask:{config.show_opencv_triggerbot_mask}")
-        print(f"[Settings] Text Info - Mode:{config.show_mode_text} Aim:{config.show_aimbot_status} TB:{config.show_triggerbot_status}")
-        print(f"[Settings] Text Info - Targets:{config.show_target_count} Cross:{config.show_crosshair} Dist:{config.show_distance_text}")
-        
         # 關閉視窗
         self.destroy()
     
     def _on_cancel(self):
         """取消並關閉 - 不保存任何更改，恢復原始設置"""
-        # 恢復所有設置到臨時保存的值（不更新 config）
-        # 這樣可以確保如果用戶再次打開設置視窗，會看到原始值
-        print("[Settings] Cancelled - no changes saved, restoring original settings")
         self.destroy()

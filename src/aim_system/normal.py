@@ -1,8 +1,12 @@
 """
-Normal 模式瞄準算法
-處理 Normal 模式下的 Aimbot 和 Triggerbot 邏輯
+瞄準算法調度器
+處理所有瞄準模式下的 Aimbot 和 Triggerbot 邏輯
+支持 Normal, Silent, NCAF, WindMouse, Bezier 五種模式
 """
 import math
+import queue
+import threading
+import time
 
 from src.utils.config import config
 from src.utils.mouse import is_button_pressed
@@ -36,76 +40,332 @@ def calculate_movement(dx, dy, sens, dpi):
     return ndx, ndy
 
 
-def process_aimbot(targets, center_x, center_y, distance_to_center, 
-                   normal_x_speed, normal_y_speed, normalsmooth, normalsmoothfov,
-                   aim_enabled, selected_btn, clip_movement_func, move_queue):
+def _flush_move_queue(tracker):
+    """清空移動隊列，防止堆積"""
+    if tracker.move_queue.full():
+        try:
+            while not tracker.move_queue.empty():
+                tracker.move_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+
+# =====================================================
+# Normal 模式
+# =====================================================
+
+def _apply_normal_aim(dx, dy, distance_to_center, tracker, is_sec=False):
     """
-    處理 Aimbot 邏輯
-    
-    Args:
-        targets: 目標列表
-        center_x: 螢幕中心 X 座標
-        center_y: 螢幕中心 Y 座標
-        distance_to_center: 目標到中心的距離
-        normal_x_speed: X 軸速度
-        normal_y_speed: Y 軸速度
-        normalsmooth: 平滑度
-        normalsmoothfov: 平滑 FOV
-        aim_enabled: 是否啟用 Aimbot
-        selected_btn: 選中的按鈕索引
-        clip_movement_func: 限制移動量的函數
-        move_queue: 移動隊列
-        
-    Returns:
-        bool: 是否執行了移動
+    Normal 模式瞄準：每幀計算 delta → 應用速度/平滑 → 移動
     """
-    if not (aim_enabled and selected_btn is not None and 
-            is_button_pressed(selected_btn) and targets):
-        return False
+    if is_sec:
+        x_speed = float(getattr(config, "normal_x_speed_sec", tracker.normal_x_speed_sec))
+        y_speed = float(getattr(config, "normal_y_speed_sec", tracker.normal_y_speed_sec))
+        smooth = float(getattr(config, "normalsmooth_sec", tracker.normalsmooth_sec))
+        smoothfov = float(getattr(config, "normalsmoothfov_sec", tracker.normalsmoothfov_sec))
+        fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
+        label = "Sec Aimbot (Normal)"
+    else:
+        x_speed = float(getattr(config, "normal_x_speed", tracker.normal_x_speed))
+        y_speed = float(getattr(config, "normal_y_speed", tracker.normal_y_speed))
+        smooth = float(getattr(config, "normalsmooth", tracker.normalsmooth))
+        smoothfov = float(getattr(config, "normalsmoothfov", tracker.normalsmoothfov))
+        fov = float(getattr(config, 'fovsize', tracker.fovsize))
+        label = "Main Aimbot (Normal)"
     
-    try:
-        # 計算移動量
-        sens = float(getattr(config, "in_game_sens", 7))
-        dpi = float(getattr(config, "mouse_dpi", 800))
-        
-        dx = targets[0][0] - center_x  # 假設 targets[0] 是最佳目標
-        dy = targets[0][1] - center_y
-        
-        ndx, ndy = calculate_movement(dx, dy, sens, dpi)
-        
-        # 根據距離應用不同的平滑度
-        if distance_to_center < float(getattr(config, "normalsmoothfov", normalsmoothfov)):
-            # 在平滑 FOV 內，應用平滑度
-            ndx *= float(getattr(config, "normal_x_speed", normal_x_speed)) / max(
-                float(getattr(config, "normalsmooth", normalsmooth)), 0.01)
-            ndy *= float(getattr(config, "normal_y_speed", normal_y_speed)) / max(
-                float(getattr(config, "normalsmooth", normalsmooth)), 0.01)
+    sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
+    dpi = float(getattr(config, "mouse_dpi", tracker.mouse_dpi))
+    
+    ndx, ndy = calculate_movement(dx, dy, sens, dpi)
+    
+    if distance_to_center < smoothfov:
+        ndx *= x_speed / max(smooth, 0.01)
+        ndy *= y_speed / max(smooth, 0.01)
+    else:
+        ndx *= x_speed
+        ndy *= y_speed
+    
+    ddx, ddy = tracker._clip_movement(ndx, ndy)
+    
+    # 根據距離動態調整延遲
+    distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
+    dynamic_delay = 0.005 * (1.0 - distance_factor * 0.4)
+    
+    _flush_move_queue(tracker)
+    tracker.move_queue.put((ddx, ddy, dynamic_delay))
+    log_move(ddx, ddy, label)
+
+
+# =====================================================
+# Silent 模式
+# =====================================================
+
+def _apply_silent_aim(dx, dy, tracker, is_sec=False):
+    """
+    Silent 模式瞄準：移動 → 點擊 → 恢復原位
+    """
+    from .silent import threaded_silent_move
+    
+    if is_sec:
+        x_speed = float(getattr(config, "normal_x_speed_sec", tracker.normal_x_speed_sec))
+        y_speed = float(getattr(config, "normal_y_speed_sec", tracker.normal_y_speed_sec))
+    else:
+        x_speed = float(getattr(config, "normal_x_speed", tracker.normal_x_speed))
+        y_speed = float(getattr(config, "normal_y_speed", tracker.normal_y_speed))
+    
+    dx_raw = int(dx * x_speed)
+    dy_raw = int(dy * y_speed)
+    
+    threading.Thread(
+        target=threaded_silent_move,
+        args=(tracker.controller, dx_raw, dy_raw),
+        daemon=True
+    ).start()
+
+
+# =====================================================
+# NCAF 模式
+# =====================================================
+
+def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
+    """
+    NCAF 模式瞄準：非線性近距曲線 + 穩定追蹤
+
+    使用像素距離 (distance_to_center) 計算 NCAF 3-zone 速度因子：
+      Zone 1 – 在 Snap Radius 外：全速 (factor=1.0)
+      Zone 2 – Snap Radius 與 Near Radius 之間：線性過渡至 snap_boost
+      Zone 3 – 在 Near Radius 內：snap_boost × (d/near_radius)^α（精確減速）
+    """
+    from .NCAF import NCAFController
+
+    if is_sec:
+        x_speed = float(getattr(config, "normal_x_speed_sec", tracker.normal_x_speed_sec))
+        y_speed = float(getattr(config, "normal_y_speed_sec", tracker.normal_y_speed_sec))
+        snap_radius = float(getattr(config, "ncaf_snap_radius_sec", 150.0))
+        near_radius = float(getattr(config, "ncaf_near_radius_sec", 50.0))
+        alpha = float(getattr(config, "ncaf_alpha_sec", 1.5))
+        snap_boost = float(getattr(config, "ncaf_snap_boost_sec", 0.3))
+        max_step = float(getattr(config, "ncaf_max_step_sec", 50.0))
+        fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
+        label = "Sec Aimbot (NCAF)"
+    else:
+        x_speed = float(getattr(config, "normal_x_speed", tracker.normal_x_speed))
+        y_speed = float(getattr(config, "normal_y_speed", tracker.normal_y_speed))
+        snap_radius = float(getattr(config, "ncaf_snap_radius", 150.0))
+        near_radius = float(getattr(config, "ncaf_near_radius", 50.0))
+        alpha = float(getattr(config, "ncaf_alpha", 1.5))
+        snap_boost = float(getattr(config, "ncaf_snap_boost", 0.3))
+        max_step = float(getattr(config, "ncaf_max_step", 50.0))
+        fov = float(getattr(config, 'fovsize', tracker.fovsize))
+        label = "Main Aimbot (NCAF)"
+
+    sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
+    dpi = float(getattr(config, "mouse_dpi", tracker.mouse_dpi))
+
+    # 1. 轉換為滑鼠移動量，並乘以速度係數
+    ndx, ndy = calculate_movement(dx, dy, sens, dpi)
+    ndx *= x_speed
+    ndy *= y_speed
+
+    # 2. 用像素距離查詢 NCAF 3-zone 速度因子
+    pixel_dist = distance_to_center
+    if pixel_dist <= 1e-6:
+        return
+
+    factor = NCAFController.compute_ncaf_factor(
+        pixel_dist, snap_radius, near_radius, alpha, snap_boost
+    )
+
+    ndx *= factor
+    ndy *= factor
+
+    # 3. 限制每步最大移動量
+    step = math.hypot(ndx, ndy)
+    if max_step > 0 and step > max_step:
+        scale = max_step / step
+        ndx *= scale
+        ndy *= scale
+
+    ddx, ddy = tracker._clip_movement(ndx, ndy)
+
+    distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
+    dynamic_delay = 0.003 * (1.0 - distance_factor * 0.3)
+
+    _flush_move_queue(tracker)
+    tracker.move_queue.put((ddx, ddy, dynamic_delay))
+    log_move(ddx, ddy, label)
+
+
+# =====================================================
+# WindMouse 模式
+# =====================================================
+
+class _WindMouseConfig:
+    """WindMouse 所需的配置包裝器"""
+    def __init__(self, is_sec=False):
+        if is_sec:
+            self.smooth_gravity = float(getattr(config, "wm_gravity_sec", 9.0))
+            self.smooth_wind = float(getattr(config, "wm_wind_sec", 3.0))
+            self.smooth_max_step = float(getattr(config, "wm_max_step_sec", 15.0))
+            self.smooth_min_step = float(getattr(config, "wm_min_step_sec", 2.0))
+            self.smooth_min_delay = float(getattr(config, "wm_min_delay_sec", 0.001))
+            self.smooth_max_delay = float(getattr(config, "wm_max_delay_sec", 0.003))
         else:
-            # 在平滑 FOV 外，只應用速度
-            ndx *= float(getattr(config, "normal_x_speed", normal_x_speed))
-            ndy *= float(getattr(config, "normal_y_speed", normal_y_speed))
+            self.smooth_gravity = float(getattr(config, "wm_gravity", 9.0))
+            self.smooth_wind = float(getattr(config, "wm_wind", 3.0))
+            self.smooth_max_step = float(getattr(config, "wm_max_step", 15.0))
+            self.smooth_min_step = float(getattr(config, "wm_min_step", 2.0))
+            self.smooth_min_delay = float(getattr(config, "wm_min_delay", 0.001))
+            self.smooth_max_delay = float(getattr(config, "wm_max_delay", 0.003))
         
-        # 限制移動量並加入隊列
-        ddx, ddy = clip_movement_func(ndx, ndy)
-        move_queue.put((ddx, ddy, 0.005))
-        return True
-    except Exception:
-        return False
+        # 固定的內部參數
+        self.smooth_reaction_min = 0.02
+        self.smooth_reaction_max = 0.08
+        self.smooth_close_range = 30.0
+        self.smooth_close_speed = 0.3
+        self.smooth_far_range = 200.0
+        self.smooth_far_speed = 0.8
+        self.smooth_fatigue_effect = 0.5
+        self.smooth_max_step_ratio = 0.15
+        self.smooth_target_area_ratio = 0.05
+        self.smooth_acceleration = 0.8
+        self.smooth_deceleration = 0.6
+        self.smooth_micro_corrections = 1
+
+
+def _apply_windmouse_aim(dx, dy, tracker, is_sec=False):
+    """
+    WindMouse 模式瞄準：生成類人化滑鼠路徑並執行
+    
+    必須先乘以 x_speed/y_speed，否則 calculate_movement 產出的度數值太小
+    (通常 < 1)，WindMouse 的 distance < 2 判斷會直接丟棄。
+    """
+    from .windmouse_smooth import smooth_aimer
+    
+    wm_config = _WindMouseConfig(is_sec)
+    label = "Sec Aimbot (WindMouse)" if is_sec else "Main Aimbot (WindMouse)"
+    
+    if is_sec:
+        x_speed = float(getattr(config, "normal_x_speed_sec", tracker.normal_x_speed_sec))
+        y_speed = float(getattr(config, "normal_y_speed_sec", tracker.normal_y_speed_sec))
+    else:
+        x_speed = float(getattr(config, "normal_x_speed", tracker.normal_x_speed))
+        y_speed = float(getattr(config, "normal_y_speed", tracker.normal_y_speed))
+    
+    sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
+    dpi = float(getattr(config, "mouse_dpi", tracker.mouse_dpi))
+    
+    # 轉換為滑鼠移動量，並乘以速度係數（與 Normal 模式一致）
+    ndx, ndy = calculate_movement(dx, dy, sens, dpi)
+    ndx *= x_speed
+    ndy *= y_speed
+    
+    path = smooth_aimer.calculate_smooth_path(ndx, ndy, wm_config)
+    
+    if path:
+        def execute_path():
+            for step_dx, step_dy, delay in path:
+                try:
+                    tracker.controller.move(step_dx, step_dy)
+                except Exception:
+                    pass
+                if delay > 0:
+                    time.sleep(delay)
+        
+        threading.Thread(target=execute_path, daemon=True).start()
+        log_move(ndx, ndy, label)
+
+
+# =====================================================
+# Bezier 模式
+# =====================================================
+
+def _apply_bezier_aim(dx, dy, distance_to_center, tracker, is_sec=False):
+    """
+    Bezier 模式瞄準：使用貝茲曲線生成平滑移動路徑
+    """
+    from .Bezier import BezierMovement
+
+    if is_sec:
+        segments = int(getattr(config, "bezier_segments_sec", 8))
+        ctrl_x = float(getattr(config, "bezier_ctrl_x_sec", 16.0))
+        ctrl_y = float(getattr(config, "bezier_ctrl_y_sec", 16.0))
+        speed = float(getattr(config, "bezier_speed_sec", 1.0))
+        delay = float(getattr(config, "bezier_delay_sec", 0.002))
+        fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
+        label = "Sec Aimbot (Bezier)"
+    else:
+        segments = int(getattr(config, "bezier_segments", 8))
+        ctrl_x = float(getattr(config, "bezier_ctrl_x", 16.0))
+        ctrl_y = float(getattr(config, "bezier_ctrl_y", 16.0))
+        speed = float(getattr(config, "bezier_speed", 1.0))
+        delay = float(getattr(config, "bezier_delay", 0.002))
+        fov = float(getattr(config, 'fovsize', tracker.fovsize))
+        label = "Main Aimbot (Bezier)"
+
+    sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
+    dpi = float(getattr(config, "mouse_dpi", tracker.mouse_dpi))
+
+    ndx, ndy = calculate_movement(dx, dy, sens, dpi)
+    ndx *= speed
+    ndy *= speed
+
+    bezier = BezierMovement(segments=segments, ctrl_x=ctrl_x, ctrl_y=ctrl_y)
+    deltas = bezier.get_movement_deltas(ndx, ndy)
+
+    if deltas:
+        # 根據距離動態調整延遲
+        distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
+        step_delay = delay * (1.0 - distance_factor * 0.3)
+
+        def execute_bezier():
+            for step_dx, step_dy in deltas:
+                sdx = int(round(step_dx))
+                sdy = int(round(step_dy))
+                if sdx != 0 or sdy != 0:
+                    try:
+                        tracker.controller.move(sdx, sdy)
+                    except Exception:
+                        pass
+                if step_delay > 0:
+                    time.sleep(step_delay)
+
+        threading.Thread(target=execute_bezier, daemon=True).start()
+        log_move(ndx, ndy, label)
+
+
+# =====================================================
+# 主調度器
+# =====================================================
+
+def _dispatch_aimbot(dx, dy, distance_to_center, mode, tracker, is_sec=False):
+    """根據模式調度瞄準邏輯"""
+    if mode == "Normal":
+        _apply_normal_aim(dx, dy, distance_to_center, tracker, is_sec)
+    elif mode == "Silent":
+        _apply_silent_aim(dx, dy, tracker, is_sec)
+    elif mode == "NCAF":
+        _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec)
+    elif mode == "WindMouse":
+        _apply_windmouse_aim(dx, dy, tracker, is_sec)
+    elif mode == "Bezier":
+        _apply_bezier_aim(dx, dy, distance_to_center, tracker, is_sec)
+    else:
+        # 預設使用 Normal
+        _apply_normal_aim(dx, dy, distance_to_center, tracker, is_sec)
 
 
 def process_normal_mode(targets, frame, img, tracker):
     """
-    處理 Normal 模式的完整邏輯（Main Aimbot + Sec Aimbot + Triggerbot）
+    主瞄準調度器（Main Aimbot + Sec Aimbot + Triggerbot）
+    Main Aimbot 和 Sec Aimbot 各自使用獨立的 Operation Mode
     優先級：Main Aimbot > Sec Aimbot
     
     Args:
-        targets: 目標列表 [(cx, cy, distance), ...]
+        targets: 目標列表 [(cx, cy, distance, head_y_min, body_y_max), ...]
         frame: 視頻幀物件
         img: BGR 圖像
         tracker: AimTracker 實例
-        
-    Returns:
-        None
     """
     # Main Aimbot 配置
     aim_enabled = getattr(config, "enableaim", False)
@@ -119,6 +379,10 @@ def process_normal_mode(targets, frame, img, tracker):
     center_y = frame.yres / 2.0
     
     main_aimbot_active = False
+    
+    # 取得各自的 Operation Mode
+    mode_main = getattr(config, "mode", "Normal")
+    mode_sec = getattr(config, "mode_sec", "Normal")
     
     # 處理 RCS（每幀調用，檢查是否應該啟動）
     rcs_active = process_rcs(
@@ -136,7 +400,6 @@ def process_normal_mode(targets, frame, img, tracker):
         if len(best_target) >= 5:
             cx, cy, _, head_y_min, body_y_max = best_target
         else:
-            # 兼容舊格式
             cx, cy, _ = best_target[:3]
             head_y_min, body_y_max = None, None
         
@@ -147,56 +410,27 @@ def process_normal_mode(targets, frame, img, tracker):
         if distance_to_center <= main_fov:
             if aim_enabled and selected_btn is not None and is_button_pressed(selected_btn):
                 try:
-                    # 獲取 Main Aimbot 的 aim_type
                     aim_type = getattr(config, "aim_type", "head")
-                    
-                    # 應用 Offset（Main Aimbot）
                     aim_offsetX = float(getattr(config, "aim_offsetX", tracker.aim_offsetX))
                     aim_offsetY = float(getattr(config, "aim_offsetY", tracker.aim_offsetY))
                     
-                    # 計算移動量（包含 offset）
                     dx = (cx + aim_offsetX) - center_x
                     dy = (cy + aim_offsetY) - center_y
                     
-                    # Nearest 模式：如果目標 Y 在 head_y_min 到 body_y_max 範圍內，Y 軸不移動
+                    # Nearest 模式
                     if aim_type == "nearest" and head_y_min is not None and body_y_max is not None:
-                        # 確保 head_y_min < body_y_max（head 在 body 上方）
                         if head_y_min < body_y_max:
                             target_y = cy + aim_offsetY
-                            # 只有在目標 Y 在範圍內時，才禁用 Y 軸移動
                             if head_y_min <= target_y <= body_y_max:
-                                dy = 0  # Y 軸不移動
-                            # 如果不在範圍內，dy 保持原值（正常移動 Y 軸）
+                                dy = 0
                     
-                    # RCS 整合：如果 RCS 正在運行，Y 軸設為 0（僅發送水平移動）
+                    # RCS 整合
                     if rcs_active:
-                        dy = 0  # RCS 啟動時，Aimbot 僅發送水平移動
+                        dy = 0
                     
-                    sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
-                    dpi = float(getattr(config, "mouse_dpi", tracker.mouse_dpi))
-                    
-                    ndx, ndy = calculate_movement(dx, dy, sens, dpi)
-                    
-                    # 根據距離應用不同的平滑度
-                    main_smoothfov = float(getattr(config, "normalsmoothfov", tracker.normalsmoothfov))
-                    if distance_to_center < main_smoothfov:
-                        # 在平滑 FOV 內，應用平滑度
-                        ndx *= float(getattr(config, "normal_x_speed", tracker.normal_x_speed)) / max(
-                            float(getattr(config, "normalsmooth", tracker.normalsmooth)), 0.01)
-                        ndy *= float(getattr(config, "normal_y_speed", tracker.normal_y_speed)) / max(
-                            float(getattr(config, "normalsmooth", tracker.normalsmooth)), 0.01)
-                    else:
-                        # 在平滑 FOV 外，只應用速度
-                        ndx *= float(getattr(config, "normal_x_speed", tracker.normal_x_speed))
-                        ndy *= float(getattr(config, "normal_y_speed", tracker.normal_y_speed))
-                    
-                    # 限制移動量並加入隊列
-                    ddx, ddy = tracker._clip_movement(ndx, ndy)
-                    tracker.move_queue.put((ddx, ddy, 0.005))
-                    # 記錄移動日誌
-                    log_move(ddx, ddy, "Main Aimbot")
+                    # 根據 Main 模式調度
+                    _dispatch_aimbot(dx, dy, distance_to_center, mode_main, tracker, is_sec=False)
                     main_aimbot_active = True
-                    print("[Aimbot] Main Aimbot Active")
                 except Exception as e:
                     print(f"[Main Aimbot error] {e}")
         
@@ -206,55 +440,26 @@ def process_normal_mode(targets, frame, img, tracker):
             if distance_to_center <= sec_fov:
                 if aim_enabled_sec and selected_btn_sec is not None and is_button_pressed(selected_btn_sec):
                     try:
-                        # 獲取 Sec Aimbot 的 aim_type
                         aim_type_sec = getattr(config, "aim_type_sec", "head")
-                        
-                        # 應用 Offset（Sec Aimbot）
                         aim_offsetX_sec = float(getattr(config, "aim_offsetX_sec", tracker.aim_offsetX_sec))
                         aim_offsetY_sec = float(getattr(config, "aim_offsetY_sec", tracker.aim_offsetY_sec))
                         
-                        # 計算移動量（包含 offset）
                         dx = (cx + aim_offsetX_sec) - center_x
                         dy = (cy + aim_offsetY_sec) - center_y
                         
-                        # Nearest 模式：如果目標 Y 在 head_y_min 到 body_y_max 範圍內，Y 軸不移動
+                        # Nearest 模式
                         if aim_type_sec == "nearest" and head_y_min is not None and body_y_max is not None:
-                            # 確保 head_y_min < body_y_max（head 在 body 上方）
                             if head_y_min < body_y_max:
                                 target_y = cy + aim_offsetY_sec
-                                # 只有在目標 Y 在範圍內時，才禁用 Y 軸移動
                                 if head_y_min <= target_y <= body_y_max:
-                                    dy = 0  # Y 軸不移動
-                                # 如果不在範圍內，dy 保持原值（正常移動 Y 軸）
+                                    dy = 0
                         
-                        # RCS 整合：如果 RCS 正在運行，Y 軸設為 0（僅發送水平移動）
+                        # RCS 整合
                         if rcs_active:
-                            dy = 0  # RCS 啟動時，Aimbot 僅發送水平移動
+                            dy = 0
                         
-                        sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
-                        dpi = float(getattr(config, "mouse_dpi", tracker.mouse_dpi))
-                        
-                        ndx, ndy = calculate_movement(dx, dy, sens, dpi)
-                        
-                        # 根據距離應用不同的平滑度（使用 Sec 參數）
-                        sec_smoothfov = float(getattr(config, "normalsmoothfov_sec", tracker.normalsmoothfov_sec))
-                        if distance_to_center < sec_smoothfov:
-                            # 在平滑 FOV 內，應用平滑度
-                            ndx *= float(getattr(config, "normal_x_speed_sec", tracker.normal_x_speed_sec)) / max(
-                                float(getattr(config, "normalsmooth_sec", tracker.normalsmooth_sec)), 0.01)
-                            ndy *= float(getattr(config, "normal_y_speed_sec", tracker.normal_y_speed_sec)) / max(
-                                float(getattr(config, "normalsmooth_sec", tracker.normalsmooth_sec)), 0.01)
-                        else:
-                            # 在平滑 FOV 外，只應用速度
-                            ndx *= float(getattr(config, "normal_x_speed_sec", tracker.normal_x_speed_sec))
-                            ndy *= float(getattr(config, "normal_y_speed_sec", tracker.normal_y_speed_sec))
-                        
-                        # 限制移動量並加入隊列
-                        ddx, ddy = tracker._clip_movement(ndx, ndy)
-                        tracker.move_queue.put((ddx, ddy, 0.005))
-                        # 記錄移動日誌
-                        log_move(ddx, ddy, "Sec Aimbot")
-                        print("[Aimbot] Sec Aimbot Active")
+                        # 根據 Sec 模式調度
+                        _dispatch_aimbot(dx, dy, distance_to_center, mode_sec, tracker, is_sec=True)
                     except Exception as e:
                         print(f"[Sec Aimbot error] {e}")
     
@@ -268,8 +473,5 @@ def process_normal_mode(targets, frame, img, tracker):
             tracker.tbburst_count_min, tracker.tbburst_count_max,
             tracker.tbburst_interval_min, tracker.tbburst_interval_max
         )
-        # 可選：顯示狀態信息（用於調試）
-        # print(f"[Triggerbot] {status}")
     except Exception as e:
         print("[Triggerbot error]", e)
-

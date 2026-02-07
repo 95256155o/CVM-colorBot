@@ -23,13 +23,24 @@ except ImportError as e:
     print(f"[Capture] CaptureCard module import failed: {e}")
     print("[Capture] CaptureCard mode will be unavailable.")
 
+# 嘗試導入 MSS
+try:
+    from .mss_capture import MSSCapture, HAS_MSS
+    if HAS_MSS:
+        print("[Capture] MSS module loaded successfully.")
+    else:
+        print("[Capture] MSS python package not installed. Run: pip install mss")
+except ImportError as e:
+    HAS_MSS = False
+    print(f"[Capture] MSS module import failed: {e}")
+
 class CaptureService:
     """
     捕獲服務管理器
-    統一管理 NDI、UDP 和 CaptureCard 三種捕獲方式，提供統一的接口。
+    統一管理 NDI、UDP、CaptureCard 和 MSS 四種捕獲方式，提供統一的接口。
     """
     def __init__(self):
-        self.mode = "NDI" # "NDI", "UDP", or "CaptureCard"
+        self.mode = "NDI" # "NDI", "UDP", "CaptureCard", or "MSS"
         
         # NDI
         self.ndi = NDIManager()
@@ -40,12 +51,15 @@ class CaptureService:
         # CaptureCard
         self.capture_card_camera = None
         
+        # MSS
+        self.mss_capture = None
+        
         self._ip = "127.0.0.1"
         self._port = 1234
 
     def set_mode(self, mode):
         """切換捕獲模式"""
-        if mode not in ["NDI", "UDP", "CaptureCard"]:
+        if mode not in ["NDI", "UDP", "CaptureCard", "MSS"]:
             return
         
         # 如果切換模式，先斷開當前連接
@@ -72,15 +86,10 @@ class CaptureService:
             return False, "UDP manager not initialized"
             
         try:
-            print(f"[Capture] Attempting to connect to UDP {self._ip}:{self._port}...")
-            # 使用 OBS_UDP.py 的 API: connect(ip, port, target_fps)
-            # target_fps=0 表示不限制 FPS，讓系統自動處理
             success = self.udp_manager.connect(self._ip, self._port, target_fps=0)
             if success:
-                print(f"[Capture] UDP connected successfully to {self._ip}:{self._port}")
                 return True, None
             else:
-                print(f"[Capture] UDP connection failed to {self._ip}:{self._port}")
                 return False, "Connection failed - check IP/Port and ensure OBS is streaming"
         except Exception as e:
             print(f"[Capture] UDP connection exception: {e}")
@@ -98,20 +107,37 @@ class CaptureService:
             # 使用全局 config 或傳入的 config
             config_to_use = config if config else global_config
             
-            print(f"[Capture] Attempting to connect to CaptureCard...")
             self.capture_card_camera = create_capture_card_camera(config_to_use)
-            print(f"[Capture] CaptureCard connected successfully")
             return True, None
         except Exception as e:
             print(f"[Capture] CaptureCard connection exception: {e}")
             return False, str(e)
 
+    def connect_mss(self, monitor_index=1, fov_x=320, fov_y=320):
+        """連接 MSS 螢幕擷取"""
+        self.mode = "MSS"
+        
+        if not HAS_MSS:
+            return False, "MSS module not loaded (pip install mss)"
+        
+        try:
+            self.mss_capture = MSSCapture(
+                monitor_index=monitor_index,
+                fov_x=fov_x,
+                fov_y=fov_y
+            )
+            success, err = self.mss_capture.connect()
+            if success:
+                return True, None
+            else:
+                return False, err
+        except Exception as e:
+            print(f"[Capture] MSS connection exception: {e}")
+            return False, str(e)
+
     def disconnect(self):
         """斷開連接"""
         if self.mode == "NDI":
-            # NDI cleanup/disconnect logic if exposed
-            # 目前 NDI 類主要通過 set_source(None) 在 cleanup 中處理，
-            # 這裡我們可以暫時不強制斷開，或者擴展 NDI 類
             pass 
         elif self.mode == "UDP":
             if self.udp_manager:
@@ -120,6 +146,10 @@ class CaptureService:
             if self.capture_card_camera:
                 self.capture_card_camera.stop()
                 self.capture_card_camera = None
+        elif self.mode == "MSS":
+            if self.mss_capture:
+                self.mss_capture.disconnect()
+                self.mss_capture = None
 
     def is_connected(self):
         """檢查當前模式是否已連接"""
@@ -128,16 +158,18 @@ class CaptureService:
         elif self.mode == "UDP":
             if not self.udp_manager:
                 return False
-            # 使用 is_stream_active() 方法而不是 is_connected 屬性
             try:
                 return self.udp_manager.is_stream_active()
             except:
-                # 如果方法失敗，回退到屬性檢查
                 return getattr(self.udp_manager, 'is_connected', False)
         elif self.mode == "CaptureCard":
             if not self.capture_card_camera:
                 return False
             return self.capture_card_camera.cap is not None and self.capture_card_camera.cap.isOpened()
+        elif self.mode == "MSS":
+            if not self.mss_capture:
+                return False
+            return self.mss_capture.is_connected()
         return False
 
     def read_frame(self):
@@ -199,13 +231,36 @@ class CaptureService:
                 if frame is None:
                     return None
                 
-                # 驗證幀的有效性
                 if frame.size == 0:
                     return None
                     
                 return frame
             except Exception as e:
                 print(f"[Capture] CaptureCard read frame error: {e}")
+                return None
+        
+        elif self.mode == "MSS":
+            if not self.mss_capture:
+                return None
+            
+            try:
+                # 動態更新 FOV（允許即時調整）
+                from src.utils.config import config as global_config
+                fov_x = int(getattr(global_config, "mss_fov_x", self.mss_capture.fov_x))
+                fov_y = int(getattr(global_config, "mss_fov_y", self.mss_capture.fov_y))
+                if fov_x != self.mss_capture.fov_x or fov_y != self.mss_capture.fov_y:
+                    self.mss_capture.set_fov(fov_x, fov_y)
+                
+                frame = self.mss_capture.get_frame()
+                if frame is None:
+                    return None
+                
+                if frame.size == 0:
+                    return None
+                
+                return frame
+            except Exception as e:
+                print(f"[Capture] MSS read frame error: {e}")
                 return None
             
         return None
@@ -238,4 +293,11 @@ class CaptureService:
                 self.capture_card_camera = None
         except Exception as e:
             print(f"[Capture] CaptureCard cleanup error (ignored): {e}")
+        
+        try:
+            if self.mss_capture:
+                self.mss_capture.cleanup()
+                self.mss_capture = None
+        except Exception as e:
+            print(f"[Capture] MSS cleanup error (ignored): {e}")
 

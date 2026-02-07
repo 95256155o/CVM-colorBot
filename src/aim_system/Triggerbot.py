@@ -40,23 +40,45 @@ def _execute_burst_sequence(controller, burst_count_min, burst_count_max, hold_m
     with _triggerbot_state["burst_lock"]:
         _triggerbot_state["burst_state"] = "bursting"
     
+    button_pressed = False  # 追蹤按鍵狀態
     try:
         for i in range(burst_count):
             # 從範圍中隨機選擇 hold 時間
             random_hold = random.uniform(hold_min, hold_max)
             
-            # 按下滑鼠按鈕
-            controller.press()
-            time.sleep(random_hold / 1000.0)  # 等待隨機 hold 時間（轉換為秒）
-            # 釋放滑鼠按鈕
-            controller.release()
+            try:
+                # 按下滑鼠按鈕
+                controller.press()
+                button_pressed = True
+                time.sleep(random_hold / 1000.0)  # 等待隨機 hold 時間（轉換為秒）
+            except Exception as e:
+                print(f"[Triggerbot press error] {e}")
+            finally:
+                # 確保釋放滑鼠按鈕
+                try:
+                    if button_pressed:
+                        controller.release()
+                        button_pressed = False
+                except Exception as e:
+                    print(f"[Triggerbot release error] {e}")
             
             # 如果不是最後一發，等待隨機 Interval 時間
             if i < burst_count - 1:
-                random_interval = random.uniform(interval_min, interval_max)
-                if random_interval > 0:
-                    time.sleep(random_interval / 1000.0)
+                try:
+                    random_interval = random.uniform(interval_min, interval_max)
+                    if random_interval > 0:
+                        time.sleep(random_interval / 1000.0)
+                except Exception as e:
+                    print(f"[Triggerbot interval error] {e}")
+    except Exception as e:
+        print(f"[Triggerbot burst sequence error] {e}")
     finally:
+        # 確保無論如何都釋放按鍵並重置狀態
+        try:
+            if button_pressed:
+                controller.release()
+        except Exception as e:
+            print(f"[Triggerbot final release error] {e}")
         with _triggerbot_state["burst_lock"]:
             _triggerbot_state["burst_state"] = None
             _triggerbot_state["burst_thread"] = None
@@ -100,6 +122,12 @@ def process_triggerbot(frame, img, model, controller, tbdelay_min, tbdelay_max,
             if _triggerbot_state["burst_state"] != "bursting":
                 _triggerbot_state["enter_range_time"] = None
                 _triggerbot_state["burst_state"] = None
+            # 如果正在連發中，確保釋放按鍵
+            elif _triggerbot_state["burst_state"] == "bursting":
+                try:
+                    controller.release()
+                except Exception as e:
+                    print(f"[Triggerbot button release error] {e}")
         return "BUTTON_NOT_PRESSED"
     
     try:

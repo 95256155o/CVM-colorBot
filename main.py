@@ -20,7 +20,6 @@ from src.utils.mouse import Mouse, is_button_pressed
 from src.utils.detection import load_model, perform_detection
 from src.capture.capture_service import CaptureService
 from src.aim_system.normal import process_normal_mode
-from src.aim_system.silent import process_silent_mode
 from src.aim_system.anti_smoke_detector import AntiSmokeDetector
 
 class FrameInfo:
@@ -77,6 +76,7 @@ class AimTracker:
         self.in_game_sens = float(getattr(config, "in_game_sens", 0.235))
         self.color = getattr(config, "color", "yellow")
         self.mode = getattr(config, "mode", "Normal")
+        self.mode_sec = getattr(config, "mode_sec", "Normal")
         self.selected_mouse_button = getattr(config, "selected_mouse_button", 3),
         self.selected_tb_btn= getattr(config, "selected_tb_btn", 3)
         self.max_speed = float(getattr(config, "max_speed", 1000.0))
@@ -122,8 +122,6 @@ class AimTracker:
         self.anti_smoke_detector_sec = AntiSmokeDetector()
         self.anti_smoke_detector_sec.set_enabled(getattr(config, "anti_smoke_enabled_sec", False))
         
-        print(f"[AntiSmoke] Main Aimbot Anti-Smoke: {self.anti_smoke_detector.is_enabled()}")
-        print(f"[AntiSmoke] Sec Aimbot Anti-Smoke: {self.anti_smoke_detector_sec.is_enabled()}")
 
     def stop(self):
         """
@@ -317,12 +315,10 @@ class AimTracker:
         if not bgr_img.flags['C_CONTIGUOUS']:
             bgr_img = np.ascontiguousarray(bgr_img)
 
-        # 幀計數和日誌（每 5 秒打印一次）
+        # 幀計數（供 UI 讀取，不再反覆打印）
         self._frame_count += 1
         current_time = time.time()
         if current_time - self._last_frame_log_time >= 5.0:
-            fps = self._frame_count / (current_time - self._last_frame_log_time)
-            print(f"[Track] Receiving frames: {self._frame_count} frames in 5s (FPS: {fps:.2f})")
             self._frame_count = 0
             self._last_frame_log_time = current_time
         
@@ -705,26 +701,18 @@ class AimTracker:
         """
         處理瞄準和移動邏輯
         
-        根據當前模式（Normal 或 Silent）執行相應的瞄準和移動邏輯。
+        統一調度器：Main Aimbot 和 Sec Aimbot 各自使用獨立的 Operation Mode。
+        支持 Normal、Silent、NCAF、WindMouse 四種模式。
         
         Args:
             targets: 目標列表，每個元素為 (cx, cy, distance) 元組
             frame: 視頻幀物件
             img: BGR 圖像陣列
         """
-        mode = getattr(config, "mode", "Normal")
-        
-        if mode == "Normal":
-            try:
-                process_normal_mode(targets, frame, img, self)
-            except Exception as e:
-                print("[Normal mode error]", e)
-
-        elif mode == "Silent":
-            try:
-                process_silent_mode(targets, frame, self)
-            except Exception as e:
-                print("[Silent mode error]", e)
+        try:
+            process_normal_mode(targets, frame, img, self)
+        except Exception as e:
+            print("[Aim dispatch error]", e)
 
 
 if __name__ == "__main__":
@@ -771,8 +759,7 @@ if __name__ == "__main__":
     config.load_from_file()
     app._sync_config_to_tracker()
     
-    print("[Main] Application initialized with configuration")
-    print(f"[Main] Current settings - Aim: {config.enableaim}, Mode: {config.mode}, FOV: {config.fovsize}")
+    print("[Main] Application initialized")
     
     # Print version info
     from src.utils.updater import get_update_checker
