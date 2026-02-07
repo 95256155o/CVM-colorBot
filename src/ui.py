@@ -473,6 +473,95 @@ class ViewerApp(ctk.CTk):
             self._add_text_button(btn_frame, "REFRESH", self._refresh_sources).pack(side="left")
             self._add_text_button(btn_frame, "CONNECT", self._connect_to_selected).pack(side="left", padx=15)
             
+            # NDI FOV 裁切設定
+            self._add_spacer_in_frame(self.capture_content_frame)
+            self._add_subtitle_in_frame(self.capture_content_frame, "CENTER CROP (FOV)")
+            
+            # Enable FOV Crop Checkbox
+            if not hasattr(self, 'var_ndi_fov_enabled'):
+                self.var_ndi_fov_enabled = tk.BooleanVar(value=getattr(config, "ndi_fov_enabled", False))
+            
+            fov_enable_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_enable_frame.pack(fill="x", pady=5)
+            ctk.CTkLabel(fov_enable_frame, text="Enable Center Crop", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            ndi_fov_switch = ctk.CTkSwitch(
+                fov_enable_frame,
+                text="",
+                variable=self.var_ndi_fov_enabled,
+                command=self._on_ndi_fov_enabled_changed,
+                fg_color=COLOR_BORDER,
+                progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT,
+                button_hover_color=COLOR_ACCENT_HOVER,
+                width=50,
+                height=20
+            )
+            ndi_fov_switch.pack(side="right")
+            
+            # FOV X Slider
+            fov_x_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_x_frame.pack(fill="x", pady=2)
+            fov_x_header = ctk.CTkFrame(fov_x_frame, fg_color="transparent")
+            fov_x_header.pack(fill="x")
+            ctk.CTkLabel(fov_x_header, text="FOV X (half-width)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.ndi_fov_x_entry = ctk.CTkEntry(
+                fov_x_header, width=80, height=25, fg_color=COLOR_SURFACE,
+                border_width=1, border_color=COLOR_BORDER,
+                text_color=COLOR_TEXT, font=FONT_MAIN, justify="center"
+            )
+            init_fov_x = int(getattr(config, "ndi_fov_x", 320))
+            self.ndi_fov_x_entry.insert(0, str(init_fov_x))
+            self.ndi_fov_x_entry.pack(side="right")
+            
+            self.ndi_fov_x_slider = ctk.CTkSlider(
+                fov_x_frame, from_=16, to=1920, number_of_steps=100,
+                fg_color=COLOR_BORDER, progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT, button_hover_color=COLOR_ACCENT,
+                height=10,
+                command=self._on_ndi_fov_x_slider_changed
+            )
+            self.ndi_fov_x_slider.set(init_fov_x)
+            self.ndi_fov_x_slider.pack(fill="x", pady=(2, 5))
+            self.ndi_fov_x_entry.bind("<Return>", self._on_ndi_fov_x_entry_changed)
+            self.ndi_fov_x_entry.bind("<FocusOut>", self._on_ndi_fov_x_entry_changed)
+            
+            # FOV Y Slider
+            fov_y_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_y_frame.pack(fill="x", pady=2)
+            fov_y_header = ctk.CTkFrame(fov_y_frame, fg_color="transparent")
+            fov_y_header.pack(fill="x")
+            ctk.CTkLabel(fov_y_header, text="FOV Y (half-height)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.ndi_fov_y_entry = ctk.CTkEntry(
+                fov_y_header, width=80, height=25, fg_color=COLOR_SURFACE,
+                border_width=1, border_color=COLOR_BORDER,
+                text_color=COLOR_TEXT, font=FONT_MAIN, justify="center"
+            )
+            init_fov_y = int(getattr(config, "ndi_fov_y", 320))
+            self.ndi_fov_y_entry.insert(0, str(init_fov_y))
+            self.ndi_fov_y_entry.pack(side="right")
+            
+            self.ndi_fov_y_slider = ctk.CTkSlider(
+                fov_y_frame, from_=16, to=1080, number_of_steps=100,
+                fg_color=COLOR_BORDER, progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT, button_hover_color=COLOR_ACCENT,
+                height=10,
+                command=self._on_ndi_fov_y_slider_changed
+            )
+            self.ndi_fov_y_slider.set(init_fov_y)
+            self.ndi_fov_y_slider.pack(fill="x", pady=(2, 5))
+            self.ndi_fov_y_entry.bind("<Return>", self._on_ndi_fov_y_entry_changed)
+            self.ndi_fov_y_entry.bind("<FocusOut>", self._on_ndi_fov_y_entry_changed)
+            
+            # 裁切範圍資訊
+            total_w = init_fov_x * 2
+            total_h = init_fov_y * 2
+            self.ndi_fov_info_label = ctk.CTkLabel(
+                self.capture_content_frame,
+                text=f"Crop area: {total_w} x {total_h} px (centered on frame)",
+                font=("Roboto", 9), text_color=COLOR_TEXT_DIM
+            )
+            self.ndi_fov_info_label.pack(anchor="w", pady=(0, 5))
+            
         elif method == "UDP":
             # UDP Controls
             self._add_subtitle_in_frame(self.capture_content_frame, "UDP SETTINGS")
@@ -502,6 +591,95 @@ class ViewerApp(ctk.CTk):
             btn_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
             btn_frame.pack(fill="x", pady=10)
             self._add_text_button(btn_frame, "CONNECT", self._connect_udp).pack(side="left")
+            
+            # UDP FOV 裁切設定
+            self._add_spacer_in_frame(self.capture_content_frame)
+            self._add_subtitle_in_frame(self.capture_content_frame, "CENTER CROP (FOV)")
+            
+            # Enable FOV Crop Checkbox
+            if not hasattr(self, 'var_udp_fov_enabled'):
+                self.var_udp_fov_enabled = tk.BooleanVar(value=getattr(config, "udp_fov_enabled", False))
+            
+            fov_enable_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_enable_frame.pack(fill="x", pady=5)
+            ctk.CTkLabel(fov_enable_frame, text="Enable Center Crop", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            udp_fov_switch = ctk.CTkSwitch(
+                fov_enable_frame,
+                text="",
+                variable=self.var_udp_fov_enabled,
+                command=self._on_udp_fov_enabled_changed,
+                fg_color=COLOR_BORDER,
+                progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT,
+                button_hover_color=COLOR_ACCENT_HOVER,
+                width=50,
+                height=20
+            )
+            udp_fov_switch.pack(side="right")
+            
+            # FOV X Slider
+            fov_x_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_x_frame.pack(fill="x", pady=2)
+            fov_x_header = ctk.CTkFrame(fov_x_frame, fg_color="transparent")
+            fov_x_header.pack(fill="x")
+            ctk.CTkLabel(fov_x_header, text="FOV X (half-width)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.udp_fov_x_entry = ctk.CTkEntry(
+                fov_x_header, width=80, height=25, fg_color=COLOR_SURFACE,
+                border_width=1, border_color=COLOR_BORDER,
+                text_color=COLOR_TEXT, font=FONT_MAIN, justify="center"
+            )
+            init_fov_x = int(getattr(config, "udp_fov_x", 320))
+            self.udp_fov_x_entry.insert(0, str(init_fov_x))
+            self.udp_fov_x_entry.pack(side="right")
+            
+            self.udp_fov_x_slider = ctk.CTkSlider(
+                fov_x_frame, from_=16, to=1920, number_of_steps=100,
+                fg_color=COLOR_BORDER, progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT, button_hover_color=COLOR_ACCENT,
+                height=10,
+                command=self._on_udp_fov_x_slider_changed
+            )
+            self.udp_fov_x_slider.set(init_fov_x)
+            self.udp_fov_x_slider.pack(fill="x", pady=(2, 5))
+            self.udp_fov_x_entry.bind("<Return>", self._on_udp_fov_x_entry_changed)
+            self.udp_fov_x_entry.bind("<FocusOut>", self._on_udp_fov_x_entry_changed)
+            
+            # FOV Y Slider
+            fov_y_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+            fov_y_frame.pack(fill="x", pady=2)
+            fov_y_header = ctk.CTkFrame(fov_y_frame, fg_color="transparent")
+            fov_y_header.pack(fill="x")
+            ctk.CTkLabel(fov_y_header, text="FOV Y (half-height)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.udp_fov_y_entry = ctk.CTkEntry(
+                fov_y_header, width=80, height=25, fg_color=COLOR_SURFACE,
+                border_width=1, border_color=COLOR_BORDER,
+                text_color=COLOR_TEXT, font=FONT_MAIN, justify="center"
+            )
+            init_fov_y = int(getattr(config, "udp_fov_y", 320))
+            self.udp_fov_y_entry.insert(0, str(init_fov_y))
+            self.udp_fov_y_entry.pack(side="right")
+            
+            self.udp_fov_y_slider = ctk.CTkSlider(
+                fov_y_frame, from_=16, to=1080, number_of_steps=100,
+                fg_color=COLOR_BORDER, progress_color=COLOR_TEXT,
+                button_color=COLOR_TEXT, button_hover_color=COLOR_ACCENT,
+                height=10,
+                command=self._on_udp_fov_y_slider_changed
+            )
+            self.udp_fov_y_slider.set(init_fov_y)
+            self.udp_fov_y_slider.pack(fill="x", pady=(2, 5))
+            self.udp_fov_y_entry.bind("<Return>", self._on_udp_fov_y_entry_changed)
+            self.udp_fov_y_entry.bind("<FocusOut>", self._on_udp_fov_y_entry_changed)
+            
+            # 裁切範圍資訊
+            total_w = init_fov_x * 2
+            total_h = init_fov_y * 2
+            self.udp_fov_info_label = ctk.CTkLabel(
+                self.capture_content_frame,
+                text=f"Crop area: {total_w} x {total_h} px (centered on frame)",
+                font=("Roboto", 9), text_color=COLOR_TEXT_DIM
+            )
+            self.udp_fov_info_label.pack(anchor="w", pady=(0, 5))
             
         elif method == "CaptureCard":
             # CaptureCard Controls
@@ -2073,6 +2251,36 @@ class ViewerApp(ctk.CTk):
                     self.show_crosshair_var.set(v)
                 elif k == "show_distance_text" and hasattr(self, "show_distance_var"):
                     self.show_distance_var.set(v)
+                # 更新 NDI FOV 設置
+                elif k == "ndi_fov_enabled" and hasattr(self, "var_ndi_fov_enabled"):
+                    self.var_ndi_fov_enabled.set(v)
+                elif k == "ndi_fov_x" and hasattr(self, "ndi_fov_x_entry") and self.ndi_fov_x_entry.winfo_exists():
+                    self.ndi_fov_x_entry.delete(0, "end")
+                    self.ndi_fov_x_entry.insert(0, str(v))
+                    if hasattr(self, "ndi_fov_x_slider"):
+                        self.ndi_fov_x_slider.set(v)
+                    self._update_ndi_fov_info()
+                elif k == "ndi_fov_y" and hasattr(self, "ndi_fov_y_entry") and self.ndi_fov_y_entry.winfo_exists():
+                    self.ndi_fov_y_entry.delete(0, "end")
+                    self.ndi_fov_y_entry.insert(0, str(v))
+                    if hasattr(self, "ndi_fov_y_slider"):
+                        self.ndi_fov_y_slider.set(v)
+                    self._update_ndi_fov_info()
+                # 更新 UDP FOV 設置
+                elif k == "udp_fov_enabled" and hasattr(self, "var_udp_fov_enabled"):
+                    self.var_udp_fov_enabled.set(v)
+                elif k == "udp_fov_x" and hasattr(self, "udp_fov_x_entry") and self.udp_fov_x_entry.winfo_exists():
+                    self.udp_fov_x_entry.delete(0, "end")
+                    self.udp_fov_x_entry.insert(0, str(v))
+                    if hasattr(self, "udp_fov_x_slider"):
+                        self.udp_fov_x_slider.set(v)
+                    self._update_udp_fov_info()
+                elif k == "udp_fov_y" and hasattr(self, "udp_fov_y_entry") and self.udp_fov_y_entry.winfo_exists():
+                    self.udp_fov_y_entry.delete(0, "end")
+                    self.udp_fov_y_entry.insert(0, str(v))
+                    if hasattr(self, "udp_fov_y_slider"):
+                        self.udp_fov_y_slider.set(v)
+                    self._update_udp_fov_info()
 
             from src.utils.detection import reload_model
             self.tracker.model, self.tracker.class_names = reload_model()
@@ -2162,6 +2370,64 @@ class ViewerApp(ctk.CTk):
             self._apply_sources_to_ui(names)
             self.status_indicator.configure(text="● Refreshing...", text_color=COLOR_TEXT)
 
+    def _update_ndi_fov_slider_max(self, width, height):
+        """更新 NDI FOV 滑條的最大值"""
+        if hasattr(self, 'ndi_fov_x_slider') and self.ndi_fov_x_slider.winfo_exists():
+            # 最大值設為寬度的一半（因為 fov_x 是寬度的一半）
+            max_x = max(16, width // 2) if width else 1920
+            self.ndi_fov_x_slider.configure(to=max_x)
+            # 如果當前值超過新的最大值，調整為最大值
+            current_val = int(getattr(config, "ndi_fov_x", 320))
+            if current_val > max_x:
+                config.ndi_fov_x = max_x
+                self.ndi_fov_x_slider.set(max_x)
+                if hasattr(self, 'ndi_fov_x_entry') and self.ndi_fov_x_entry.winfo_exists():
+                    self.ndi_fov_x_entry.delete(0, "end")
+                    self.ndi_fov_x_entry.insert(0, str(max_x))
+        if hasattr(self, 'ndi_fov_y_slider') and self.ndi_fov_y_slider.winfo_exists():
+            # 最大值設為高度的一半（因為 fov_y 是高度的一半）
+            max_y = max(16, height // 2) if height else 1080
+            self.ndi_fov_y_slider.configure(to=max_y)
+            # 如果當前值超過新的最大值，調整為最大值
+            current_val = int(getattr(config, "ndi_fov_y", 320))
+            if current_val > max_y:
+                config.ndi_fov_y = max_y
+                self.ndi_fov_y_slider.set(max_y)
+                if hasattr(self, 'ndi_fov_y_entry') and self.ndi_fov_y_entry.winfo_exists():
+                    self.ndi_fov_y_entry.delete(0, "end")
+                    self.ndi_fov_y_entry.insert(0, str(max_y))
+        # 更新資訊顯示
+        self._update_ndi_fov_info()
+    
+    def _update_udp_fov_slider_max(self, width, height):
+        """更新 UDP FOV 滑條的最大值"""
+        if hasattr(self, 'udp_fov_x_slider') and self.udp_fov_x_slider.winfo_exists():
+            # 最大值設為寬度的一半（因為 fov_x 是寬度的一半）
+            max_x = max(16, width // 2) if width else 1920
+            self.udp_fov_x_slider.configure(to=max_x)
+            # 如果當前值超過新的最大值，調整為最大值
+            current_val = int(getattr(config, "udp_fov_x", 320))
+            if current_val > max_x:
+                config.udp_fov_x = max_x
+                self.udp_fov_x_slider.set(max_x)
+                if hasattr(self, 'udp_fov_x_entry') and self.udp_fov_x_entry.winfo_exists():
+                    self.udp_fov_x_entry.delete(0, "end")
+                    self.udp_fov_x_entry.insert(0, str(max_x))
+        if hasattr(self, 'udp_fov_y_slider') and self.udp_fov_y_slider.winfo_exists():
+            # 最大值設為高度的一半（因為 fov_y 是高度的一半）
+            max_y = max(16, height // 2) if height else 1080
+            self.udp_fov_y_slider.configure(to=max_y)
+            # 如果當前值超過新的最大值，調整為最大值
+            current_val = int(getattr(config, "udp_fov_y", 320))
+            if current_val > max_y:
+                config.udp_fov_y = max_y
+                self.udp_fov_y_slider.set(max_y)
+                if hasattr(self, 'udp_fov_y_entry') and self.udp_fov_y_entry.winfo_exists():
+                    self.udp_fov_y_entry.delete(0, "end")
+                    self.udp_fov_y_entry.insert(0, str(max_y))
+        # 更新資訊顯示
+        self._update_udp_fov_info()
+    
     def _connect_to_selected(self):
         if self.capture.mode == "NDI":
             sources = self.capture.ndi.get_source_list()
@@ -2177,8 +2443,28 @@ class ViewerApp(ctk.CTk):
             success, error = self.capture.connect_ndi(selected)
             if success:
                 self.status_indicator.configure(text=f"● Connected: {selected}", text_color=COLOR_TEXT)
+                # 連接成功後，嘗試獲取畫面尺寸並更新滑條最大值
+                self.after(500, self._update_ndi_fov_sliders_after_connect)  # 延遲一點以確保畫面已準備好
             else:
                 self.status_indicator.configure(text=f"● Error: {error}", text_color=COLOR_DANGER)
+    
+    def _update_ndi_fov_sliders_after_connect(self):
+        """連接成功後更新 NDI FOV 滑條的最大值"""
+        width, height = self.capture.get_frame_dimensions()
+        if width and height:
+            self._update_ndi_fov_slider_max(width, height)
+            print(f"[UI] NDI frame dimensions: {width}x{height}, updated FOV slider max values")
+            if hasattr(self, '_ndi_retry_count'):
+                self._ndi_retry_count = 0
+        else:
+            # 如果第一次獲取失敗，再試一次（最多試3次）
+            if not hasattr(self, '_ndi_retry_count'):
+                self._ndi_retry_count = 0
+            self._ndi_retry_count += 1
+            if self._ndi_retry_count < 3:
+                self.after(500, self._update_ndi_fov_sliders_after_connect)
+            else:
+                self._ndi_retry_count = 0
                 
     def _connect_udp(self):
         if self.capture.mode == "UDP":
@@ -2194,9 +2480,27 @@ class ViewerApp(ctk.CTk):
             success, error = self.capture.connect_udp(ip, port)
             if success:
                 self.status_indicator.configure(text=f"● Connected: UDP {ip}:{port}", text_color=COLOR_TEXT)
+                # 連接成功後，嘗試獲取畫面尺寸並更新滑條最大值
+                self.after(500, self._update_udp_fov_sliders_after_connect)  # 延遲一點以確保畫面已準備好
             else:
                 self.status_indicator.configure(text=f"● Connection failed: {error}", text_color=COLOR_DANGER)
                 print(f"[UI] UDP connection failed: {error}")
+    
+    def _update_udp_fov_sliders_after_connect(self):
+        """連接成功後更新 UDP FOV 滑條的最大值"""
+        width, height = self.capture.get_frame_dimensions()
+        if width and height:
+            self._update_udp_fov_slider_max(width, height)
+            print(f"[UI] UDP frame dimensions: {width}x{height}, updated FOV slider max values")
+        else:
+            # 如果第一次獲取失敗，再試一次（最多試3次）
+            if not hasattr(self, '_udp_retry_count'):
+                self._udp_retry_count = 0
+            self._udp_retry_count += 1
+            if self._udp_retry_count < 3:
+                self.after(500, self._update_udp_fov_sliders_after_connect)
+            else:
+                self._udp_retry_count = 0
     
     def _connect_capture_card(self):
         """連接 CaptureCard"""
@@ -2342,6 +2646,128 @@ class ViewerApp(ctk.CTk):
                     text_color=COLOR_DANGER
                 )
                 print(f"[UI] MSS connection failed: {error}")
+    
+    # --- NDI FOV Callbacks ---
+    def _on_ndi_fov_enabled_changed(self):
+        """NDI FOV 啟用狀態改變"""
+        if hasattr(self, 'var_ndi_fov_enabled'):
+            config.ndi_fov_enabled = self.var_ndi_fov_enabled.get()
+    
+    def _on_ndi_fov_x_slider_changed(self, val):
+        """NDI FOV X 滑條改變"""
+        int_val = int(round(val))
+        config.ndi_fov_x = int_val
+        if hasattr(self, 'ndi_fov_x_entry') and self.ndi_fov_x_entry.winfo_exists():
+            self.ndi_fov_x_entry.delete(0, "end")
+            self.ndi_fov_x_entry.insert(0, str(int_val))
+        self._update_ndi_fov_info()
+    
+    def _on_ndi_fov_x_entry_changed(self, event=None):
+        """NDI FOV X 輸入框改變"""
+        if hasattr(self, 'ndi_fov_x_entry') and self.ndi_fov_x_entry.winfo_exists():
+            try:
+                val = int(self.ndi_fov_x_entry.get())
+                val = max(16, min(1920, val))
+                config.ndi_fov_x = val
+                if hasattr(self, 'ndi_fov_x_slider'):
+                    self.ndi_fov_x_slider.set(val)
+                self._update_ndi_fov_info()
+            except ValueError:
+                pass
+    
+    def _on_ndi_fov_y_slider_changed(self, val):
+        """NDI FOV Y 滑條改變"""
+        int_val = int(round(val))
+        config.ndi_fov_y = int_val
+        if hasattr(self, 'ndi_fov_y_entry') and self.ndi_fov_y_entry.winfo_exists():
+            self.ndi_fov_y_entry.delete(0, "end")
+            self.ndi_fov_y_entry.insert(0, str(int_val))
+        self._update_ndi_fov_info()
+    
+    def _on_ndi_fov_y_entry_changed(self, event=None):
+        """NDI FOV Y 輸入框改變"""
+        if hasattr(self, 'ndi_fov_y_entry') and self.ndi_fov_y_entry.winfo_exists():
+            try:
+                val = int(self.ndi_fov_y_entry.get())
+                val = max(16, min(1080, val))
+                config.ndi_fov_y = val
+                if hasattr(self, 'ndi_fov_y_slider'):
+                    self.ndi_fov_y_slider.set(val)
+                self._update_ndi_fov_info()
+            except ValueError:
+                pass
+    
+    def _update_ndi_fov_info(self):
+        """更新 NDI 裁切範圍資訊顯示"""
+        if hasattr(self, 'ndi_fov_info_label') and self.ndi_fov_info_label.winfo_exists():
+            fov_x = int(getattr(config, "ndi_fov_x", 320))
+            fov_y = int(getattr(config, "ndi_fov_y", 320))
+            total_w = fov_x * 2
+            total_h = fov_y * 2
+            self.ndi_fov_info_label.configure(
+                text=f"Crop area: {total_w} x {total_h} px (centered on frame)"
+            )
+    
+    # --- UDP FOV Callbacks ---
+    def _on_udp_fov_enabled_changed(self):
+        """UDP FOV 啟用狀態改變"""
+        if hasattr(self, 'var_udp_fov_enabled'):
+            config.udp_fov_enabled = self.var_udp_fov_enabled.get()
+    
+    def _on_udp_fov_x_slider_changed(self, val):
+        """UDP FOV X 滑條改變"""
+        int_val = int(round(val))
+        config.udp_fov_x = int_val
+        if hasattr(self, 'udp_fov_x_entry') and self.udp_fov_x_entry.winfo_exists():
+            self.udp_fov_x_entry.delete(0, "end")
+            self.udp_fov_x_entry.insert(0, str(int_val))
+        self._update_udp_fov_info()
+    
+    def _on_udp_fov_x_entry_changed(self, event=None):
+        """UDP FOV X 輸入框改變"""
+        if hasattr(self, 'udp_fov_x_entry') and self.udp_fov_x_entry.winfo_exists():
+            try:
+                val = int(self.udp_fov_x_entry.get())
+                val = max(16, min(1920, val))
+                config.udp_fov_x = val
+                if hasattr(self, 'udp_fov_x_slider'):
+                    self.udp_fov_x_slider.set(val)
+                self._update_udp_fov_info()
+            except ValueError:
+                pass
+    
+    def _on_udp_fov_y_slider_changed(self, val):
+        """UDP FOV Y 滑條改變"""
+        int_val = int(round(val))
+        config.udp_fov_y = int_val
+        if hasattr(self, 'udp_fov_y_entry') and self.udp_fov_y_entry.winfo_exists():
+            self.udp_fov_y_entry.delete(0, "end")
+            self.udp_fov_y_entry.insert(0, str(int_val))
+        self._update_udp_fov_info()
+    
+    def _on_udp_fov_y_entry_changed(self, event=None):
+        """UDP FOV Y 輸入框改變"""
+        if hasattr(self, 'udp_fov_y_entry') and self.udp_fov_y_entry.winfo_exists():
+            try:
+                val = int(self.udp_fov_y_entry.get())
+                val = max(16, min(1080, val))
+                config.udp_fov_y = val
+                if hasattr(self, 'udp_fov_y_slider'):
+                    self.udp_fov_y_slider.set(val)
+                self._update_udp_fov_info()
+            except ValueError:
+                pass
+    
+    def _update_udp_fov_info(self):
+        """更新 UDP 裁切範圍資訊顯示"""
+        if hasattr(self, 'udp_fov_info_label') and self.udp_fov_info_label.winfo_exists():
+            fov_x = int(getattr(config, "udp_fov_x", 320))
+            fov_y = int(getattr(config, "udp_fov_y", 320))
+            total_w = fov_x * 2
+            total_h = fov_y * 2
+            self.udp_fov_info_label.configure(
+                text=f"Crop area: {total_w} x {total_h} px (centered on frame)"
+            )
 
     def _update_connection_status_loop(self):
         is_conn = self.capture.is_connected()

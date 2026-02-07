@@ -142,6 +142,16 @@ class Config:
         self.mss_fov_x = 320       # 擷取區域寬度的一半 (像素)
         self.mss_fov_y = 320       # 擷取區域高度的一半 (像素)
         
+        # --- NDI FOV Settings ---
+        self.ndi_fov_enabled = False  # 是否啟用 NDI 中心裁切
+        self.ndi_fov_x = 320          # NDI 擷取區域寬度的一半 (像素)
+        self.ndi_fov_y = 320          # NDI 擷取區域高度的一半 (像素)
+        
+        # --- UDP FOV Settings ---
+        self.udp_fov_enabled = False  # 是否啟用 UDP 中心裁切
+        self.udp_fov_x = 320          # UDP 擷取區域寬度的一半 (像素)
+        self.udp_fov_y = 320          # UDP 擷取區域高度的一半 (像素)
+        
         # --- CaptureCard Settings ---
         self.capture_device_index = 0
         self.capture_width = 1920
@@ -290,6 +300,16 @@ class Config:
             "mss_monitor_index": self.mss_monitor_index,
             "mss_fov_x": self.mss_fov_x,
             "mss_fov_y": self.mss_fov_y,
+            
+            # NDI FOV Settings
+            "ndi_fov_enabled": self.ndi_fov_enabled,
+            "ndi_fov_x": self.ndi_fov_x,
+            "ndi_fov_y": self.ndi_fov_y,
+            
+            # UDP FOV Settings
+            "udp_fov_enabled": self.udp_fov_enabled,
+            "udp_fov_x": self.udp_fov_x,
+            "udp_fov_y": self.udp_fov_y,
             
             # CaptureCard Settings
             "capture_device_index": self.capture_device_index,

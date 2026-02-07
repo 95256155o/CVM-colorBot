@@ -68,6 +68,80 @@ class CaptureService:
             
         self.mode = mode
 
+    def get_frame_dimensions(self):
+        """
+        獲取當前模式的畫面尺寸
+        
+        Returns:
+            tuple: (width, height) 或 (None, None) 如果無法獲取
+        """
+        if self.mode == "NDI":
+            if not self.ndi.is_connected():
+                return None, None
+            try:
+                frame = self.ndi.capture_frame()
+                if frame is None:
+                    return None, None
+                return frame.xres, frame.yres
+            except Exception:
+                return None, None
+        elif self.mode == "UDP":
+            if not self.is_connected():
+                return None, None
+            try:
+                receiver = self.udp_manager.get_receiver() if self.udp_manager else None
+                if not receiver:
+                    return None, None
+                frame = receiver.get_current_frame()
+                if frame is None or frame.size == 0:
+                    return None, None
+                h, w = frame.shape[:2]
+                return w, h
+            except Exception:
+                return None, None
+        elif self.mode == "MSS":
+            if not self.mss_capture or not self.mss_capture.is_connected():
+                return None, None
+            return self.mss_capture.screen_width, self.mss_capture.screen_height
+        return None, None
+    
+    def get_frame_dimensions(self):
+        """
+        獲取當前模式的畫面尺寸（需要先連接）
+        
+        Returns:
+            tuple: (width, height) 或 (None, None) 如果無法獲取
+        """
+        if self.mode == "NDI":
+            if not self.ndi.is_connected():
+                return None, None
+            try:
+                frame = self.ndi.capture_frame()
+                if frame is None:
+                    return None, None
+                return frame.xres, frame.yres
+            except Exception:
+                return None, None
+        elif self.mode == "UDP":
+            if not self.is_connected():
+                return None, None
+            try:
+                receiver = self.udp_manager.get_receiver() if self.udp_manager else None
+                if not receiver:
+                    return None, None
+                frame = receiver.get_current_frame()
+                if frame is None or frame.size == 0:
+                    return None, None
+                h, w = frame.shape[:2]
+                return w, h
+            except Exception:
+                return None, None
+        elif self.mode == "MSS":
+            if not self.mss_capture or not self.mss_capture.is_connected():
+                return None, None
+            return self.mss_capture.screen_width, self.mss_capture.screen_height
+        return None, None
+    
     def connect_ndi(self, source_name):
         """連接 NDI 來源"""
         self.mode = "NDI"
@@ -172,6 +246,41 @@ class CaptureService:
             return self.mss_capture.is_connected()
         return False
 
+    def _crop_frame_center(self, frame, fov_x, fov_y):
+        """
+        以畫面中心為基準裁切畫面
+        
+        Args:
+            frame: numpy.ndarray BGR 格式的圖像
+            fov_x: 擷取區域寬度的一半（像素）
+            fov_y: 擷取區域高度的一半（像素）
+        
+        Returns:
+            numpy.ndarray: 裁切後的 BGR 圖像
+        """
+        if frame is None:
+            return None
+        
+        h, w = frame.shape[:2]
+        
+        # 計算中心點
+        center_x = w // 2
+        center_y = h // 2
+        
+        # 計算裁切區域
+        left = max(0, center_x - fov_x)
+        top = max(0, center_y - fov_y)
+        right = min(w, center_x + fov_x)
+        bottom = min(h, center_y + fov_y)
+        
+        # 確保區域有效
+        if right <= left or bottom <= top:
+            return frame
+        
+        # 裁切畫面
+        cropped = frame[top:bottom, left:right]
+        return cropped
+    
     def read_frame(self):
         """
         讀取當前幀
@@ -179,6 +288,8 @@ class CaptureService:
         Returns:
             numpy.ndarray: BGR 格式的圖像，如果讀取失敗則返回 None
         """
+        from src.utils.config import config as global_config
+        
         if self.mode == "NDI":
             frame = self.ndi.capture_frame()
             if frame is None:
@@ -192,7 +303,15 @@ class CaptureService:
                 # 原始代碼：bgr_img = img[:, :, [2, 1, 0]].copy()
                 # RGBA: R=0, G=1, B=2. 
                 # [2, 1, 0] -> B, G, R
-                return img[:, :, [2, 1, 0]]
+                bgr_img = img[:, :, [2, 1, 0]]
+                
+                # 如果啟用裁切，則應用中心裁切
+                if getattr(global_config, "ndi_fov_enabled", False):
+                    fov_x = int(getattr(global_config, "ndi_fov_x", 320))
+                    fov_y = int(getattr(global_config, "ndi_fov_y", 320))
+                    return self._crop_frame_center(bgr_img, fov_x, fov_y)
+                
+                return bgr_img
             except Exception as e:
                 print(f"[Capture] NDI frame conversion error: {e}")
                 return None
@@ -216,6 +335,12 @@ class CaptureService:
                 # 驗證幀的有效性
                 if frame.size == 0:
                     return None
+                
+                # 如果啟用裁切，則應用中心裁切
+                if getattr(global_config, "udp_fov_enabled", False):
+                    fov_x = int(getattr(global_config, "udp_fov_x", 320))
+                    fov_y = int(getattr(global_config, "udp_fov_y", 320))
+                    return self._crop_frame_center(frame, fov_x, fov_y)
                     
                 return frame
             except Exception as e:
