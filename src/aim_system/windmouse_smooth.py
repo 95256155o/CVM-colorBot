@@ -15,9 +15,13 @@ class WindMouse:
         self.last_time = time.time()
         
     def wind_mouse(self, start_x, start_y, dest_x, dest_y, gravity, wind, 
-                   min_wait, max_wait, max_step, target_area):
+                   min_wait, max_wait, max_step, target_area, distance_threshold=50.0):
         """
         Generate human-like mouse movement path from start to destination.
+        
+        Args:
+            distance_threshold: Distance threshold where behavior changes.
+                               Below this distance, movement becomes more precise and controlled.
         """
         current_x, current_y = float(start_x), float(start_y)
         velocity_x = velocity_y = wind_x = wind_y = 0.0
@@ -38,16 +42,28 @@ class WindMouse:
             # Break if we're close enough to target
             if distance_squared < target_area * target_area:
                 break
+            
+            # Calculate distance for threshold check
+            distance = math.sqrt(distance_squared) if distance_squared > 1 else 0.0
+            
+            # Dynamic adjustment based on distance threshold
+            if distance_threshold > 0 and distance < distance_threshold:
+                # Below threshold: reduce wind (less randomness), increase gravity (more precise)
+                effective_wind = wind * 0.3  # Reduce randomness for precision
+                effective_gravity = gravity * 1.5  # Increase lock-on strength
+            else:
+                # Above threshold: normal behavior
+                effective_wind = wind
+                effective_gravity = gravity
                 
             # Update wind (random force) - optimized
-            wind_x = wind_x / sqrt3 + (random.random() - 0.5) * wind * 2
-            wind_y = wind_y / sqrt3 + (random.random() - 0.5) * wind * 2
+            wind_x = wind_x / sqrt3 + (random.random() - 0.5) * effective_wind * 2
+            wind_y = wind_y / sqrt3 + (random.random() - 0.5) * effective_wind * 2
             
             # Calculate gravitational pull towards target - optimized
             if distance_squared > 1:
-                distance = math.sqrt(distance_squared)
-                gravity_x = gravity * dx_to_target / distance
-                gravity_y = gravity * dy_to_target / distance
+                gravity_x = effective_gravity * dx_to_target / distance
+                gravity_y = effective_gravity * dy_to_target / distance
             else:
                 gravity_x = gravity_y = 0
                 
@@ -157,6 +173,9 @@ class SmoothAiming:
         # Target area (stop when close enough)
         target_area = max(2, distance * config.smooth_target_area_ratio)
         
+        # Get distance threshold from config (if available)
+        distance_threshold = getattr(config, 'smooth_distance_threshold', 50.0)
+        
         # WindMouse parameters calculated
         
         # Generate movement path
@@ -167,7 +186,8 @@ class SmoothAiming:
             min_wait=config.smooth_min_delay,
             max_wait=config.smooth_max_delay,
             max_step=max_step,
-            target_area=target_area
+            target_area=target_area,
+            distance_threshold=distance_threshold
         )
         
         # Apply smoothing and filtering

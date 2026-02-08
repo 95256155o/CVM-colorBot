@@ -138,6 +138,7 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
       Zone 3 – 在 Near Radius 內：snap_boost × (d/near_radius)^α（精確減速）
     """
     from .NCAF import NCAFController
+    import time
 
     if is_sec:
         x_speed = float(getattr(config, "normal_x_speed_sec", tracker.normal_x_speed_sec))
@@ -147,6 +148,9 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         alpha = float(getattr(config, "ncaf_alpha_sec", 1.5))
         snap_boost = float(getattr(config, "ncaf_snap_boost_sec", 0.3))
         max_step = float(getattr(config, "ncaf_max_step_sec", 50.0))
+        min_speed_multiplier = float(getattr(config, "ncaf_min_speed_multiplier_sec", 0.01))
+        max_speed_multiplier = float(getattr(config, "ncaf_max_speed_multiplier_sec", 10.0))
+        prediction_interval = float(getattr(config, "ncaf_prediction_interval_sec", 0.016))
         fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
         label = "Sec Aimbot (NCAF)"
     else:
@@ -157,30 +161,86 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         alpha = float(getattr(config, "ncaf_alpha", 1.5))
         snap_boost = float(getattr(config, "ncaf_snap_boost", 0.3))
         max_step = float(getattr(config, "ncaf_max_step", 50.0))
+        min_speed_multiplier = float(getattr(config, "ncaf_min_speed_multiplier", 0.01))
+        max_speed_multiplier = float(getattr(config, "ncaf_max_speed_multiplier", 10.0))
+        prediction_interval = float(getattr(config, "ncaf_prediction_interval", 0.016))
         fov = float(getattr(config, 'fovsize', tracker.fovsize))
         label = "Main Aimbot (NCAF)"
 
     sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
     dpi = float(getattr(config, "mouse_dpi", tracker.mouse_dpi))
 
-    # 1. 轉換為滑鼠移動量，並乘以速度係數
-    ndx, ndy = calculate_movement(dx, dy, sens, dpi)
+    # 1. 目標預測（簡單線性預測）
+    # 初始化預測歷史（如果不存在）
+    pred_key = f"_ncaf_prediction_{'sec' if is_sec else 'main'}"
+    if not hasattr(tracker, pred_key):
+        setattr(tracker, pred_key, {
+            'last_dx': None,
+            'last_dy': None,
+            'last_time': None,
+            'velocity': (0.0, 0.0)
+        })
+    
+    pred_data = getattr(tracker, pred_key)
+    current_time = time.time()
+    
+    # 計算預測偏移（如果啟用預測且時間間隔足夠）
+    pred_dx, pred_dy = 0.0, 0.0
+    if prediction_interval > 0 and pred_data['last_dx'] is not None and pred_data['last_time'] is not None:
+        dt = current_time - pred_data['last_time']
+        if dt > 0:
+            # 使用上次計算的速度進行預測
+            vx = pred_data['velocity'][0]
+            vy = pred_data['velocity'][1]
+            # 預測未來位置（使用 prediction_interval 作為預測時間）
+            pred_dx = vx * prediction_interval
+            pred_dy = vy * prediction_interval
+    
+    # 更新預測歷史（計算速度）
+    if pred_data['last_dx'] is not None and pred_data['last_time'] is not None:
+        dt = current_time - pred_data['last_time']
+        if dt > 0:
+            # 計算速度（像素/秒）
+            vx = (dx - pred_data['last_dx']) / dt
+            vy = (dy - pred_data['last_dy']) / dt
+            # 平滑速度（使用指數移動平均）
+            old_vx, old_vy = pred_data['velocity']
+            alpha = 0.3  # 平滑係數
+            pred_data['velocity'] = (
+                alpha * vx + (1 - alpha) * old_vx,
+                alpha * vy + (1 - alpha) * old_vy
+            )
+    
+    pred_data['last_dx'] = dx
+    pred_data['last_dy'] = dy
+    pred_data['last_time'] = current_time
+    
+    # 應用預測偏移
+    dx_with_pred = dx + pred_dx
+    dy_with_pred = dy + pred_dy
+    distance_with_pred = math.hypot(dx_with_pred, dy_with_pred)
+
+    # 2. 轉換為滑鼠移動量，並乘以速度係數
+    ndx, ndy = calculate_movement(dx_with_pred, dy_with_pred, sens, dpi)
     ndx *= x_speed
     ndy *= y_speed
 
-    # 2. 用像素距離查詢 NCAF 3-zone 速度因子
-    pixel_dist = distance_to_center
+    # 3. 用像素距離查詢 NCAF 3-zone 速度因子
+    pixel_dist = distance_with_pred
     if pixel_dist <= 1e-6:
         return
 
     factor = NCAFController.compute_ncaf_factor(
         pixel_dist, snap_radius, near_radius, alpha, snap_boost
     )
+    
+    # 4. 應用 min/max speed multiplier 限制
+    factor = max(min_speed_multiplier, min(factor, max_speed_multiplier))
 
     ndx *= factor
     ndy *= factor
 
-    # 3. 限制每步最大移動量
+    # 5. 限制每步最大移動量
     step = math.hypot(ndx, ndy)
     if max_step > 0 and step > max_step:
         scale = max_step / step
@@ -189,7 +249,7 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
 
     ddx, ddy = tracker._clip_movement(ndx, ndy)
 
-    distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
+    distance_factor = min(distance_with_pred / max(fov, 1.0), 1.0)
     dynamic_delay = 0.003 * (1.0 - distance_factor * 0.3)
 
     _flush_move_queue(tracker)
@@ -211,6 +271,7 @@ class _WindMouseConfig:
             self.smooth_min_step = float(getattr(config, "wm_min_step_sec", 2.0))
             self.smooth_min_delay = float(getattr(config, "wm_min_delay_sec", 0.001))
             self.smooth_max_delay = float(getattr(config, "wm_max_delay_sec", 0.003))
+            self.smooth_distance_threshold = float(getattr(config, "wm_distance_threshold_sec", 50.0))
         else:
             self.smooth_gravity = float(getattr(config, "wm_gravity", 9.0))
             self.smooth_wind = float(getattr(config, "wm_wind", 3.0))
@@ -218,6 +279,7 @@ class _WindMouseConfig:
             self.smooth_min_step = float(getattr(config, "wm_min_step", 2.0))
             self.smooth_min_delay = float(getattr(config, "wm_min_delay", 0.001))
             self.smooth_max_delay = float(getattr(config, "wm_max_delay", 0.003))
+            self.smooth_distance_threshold = float(getattr(config, "wm_distance_threshold", 50.0))
         
         # 固定的內部參數
         self.smooth_reaction_min = 0.02

@@ -83,10 +83,26 @@ class NCAFController:
                             snap_radius: float,
                             alpha: float,
                             snap_boost: float,
-                            max_step: float) -> Tuple[float, float]:
+                            max_step: float,
+                            min_speed_multiplier: float = 0.01,
+                            max_speed_multiplier: float = 10.0) -> Tuple[float, float]:
         """Apply NCAF speed curve to raw delta (dx, dy).
 
         Uses math.hypot(dx, dy) as the distance metric.
+        
+        Args:
+            dx: X direction delta
+            dy: Y direction delta
+            near_radius: inner precision radius (px)
+            snap_radius: outer engagement radius (px)
+            alpha: speed-curve exponent (>0)
+            snap_boost: base speed multiplier inside the near zone
+            max_step: maximum per-frame movement magnitude (px)
+            min_speed_multiplier: minimum speed multiplier (clamps factor)
+            max_speed_multiplier: maximum speed multiplier (clamps factor)
+        
+        Returns:
+            tuple: (new_dx, new_dy) adjusted deltas
         """
         distance = math.hypot(dx, dy)
         if distance <= 1e-6:
@@ -94,6 +110,9 @@ class NCAFController:
 
         factor = self.compute_ncaf_factor(distance, snap_radius, near_radius,
                                           alpha, snap_boost)
+        
+        # Apply min/max speed multiplier limits
+        factor = max(min_speed_multiplier, min(factor, max_speed_multiplier))
 
         new_dx = dx * factor
         new_dy = dy * factor

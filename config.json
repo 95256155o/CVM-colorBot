@@ -77,7 +77,7 @@
     "bezier_segments": 7,
     "bezier_ctrl_x": 5.0,
     "bezier_ctrl_y": 3.0,
-    "bezier_speed": 10.0,
+    "bezier_speed": 20.0,
     "bezier_delay": 0.044012,
     "bezier_segments_sec": 8,
     "bezier_ctrl_x_sec": 16.0,

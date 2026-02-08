@@ -90,6 +90,9 @@ class Config:
         self.ncaf_alpha = 1.5
         self.ncaf_snap_boost = 0.3
         self.ncaf_max_step = 50.0
+        self.ncaf_min_speed_multiplier = 0.01  # 滑鼠移動速度的最小倍率
+        self.ncaf_max_speed_multiplier = 10.0  # 滑鼠移動速度的最大倍率
+        self.ncaf_prediction_interval = 0.016  # 目標預測函數的處理速度（秒，約60fps）
         
         # --- NCAF Parameters (Sec) ---
         self.ncaf_snap_radius_sec = 150.0
@@ -97,6 +100,9 @@ class Config:
         self.ncaf_alpha_sec = 1.5
         self.ncaf_snap_boost_sec = 0.3
         self.ncaf_max_step_sec = 50.0
+        self.ncaf_min_speed_multiplier_sec = 0.01  # 滑鼠移動速度的最小倍率
+        self.ncaf_max_speed_multiplier_sec = 10.0  # 滑鼠移動速度的最大倍率
+        self.ncaf_prediction_interval_sec = 0.016  # 目標預測函數的處理速度（秒，約60fps）
         
         # --- WindMouse Parameters (Main) ---
         self.wm_gravity = 9.0
@@ -105,6 +111,7 @@ class Config:
         self.wm_min_step = 2.0
         self.wm_min_delay = 0.001
         self.wm_max_delay = 0.003
+        self.wm_distance_threshold = 50.0  # 距離閾值，低於此值時移動更精確
         
         # --- WindMouse Parameters (Sec) ---
         self.wm_gravity_sec = 9.0
@@ -113,6 +120,7 @@ class Config:
         self.wm_min_step_sec = 2.0
         self.wm_min_delay_sec = 0.001
         self.wm_max_delay_sec = 0.003
+        self.wm_distance_threshold_sec = 50.0  # 距離閾值，低於此值時移動更精確
         
         # --- Bezier Parameters (Main) ---
         self.bezier_segments = 8
@@ -265,12 +273,18 @@ class Config:
             "ncaf_alpha": self.ncaf_alpha,
             "ncaf_snap_boost": self.ncaf_snap_boost,
             "ncaf_max_step": self.ncaf_max_step,
+            "ncaf_min_speed_multiplier": self.ncaf_min_speed_multiplier,
+            "ncaf_max_speed_multiplier": self.ncaf_max_speed_multiplier,
+            "ncaf_prediction_interval": self.ncaf_prediction_interval,
             # NCAF Parameters (Sec)
             "ncaf_near_radius_sec": self.ncaf_near_radius_sec,
             "ncaf_snap_radius_sec": self.ncaf_snap_radius_sec,
             "ncaf_alpha_sec": self.ncaf_alpha_sec,
             "ncaf_snap_boost_sec": self.ncaf_snap_boost_sec,
             "ncaf_max_step_sec": self.ncaf_max_step_sec,
+            "ncaf_min_speed_multiplier_sec": self.ncaf_min_speed_multiplier_sec,
+            "ncaf_max_speed_multiplier_sec": self.ncaf_max_speed_multiplier_sec,
+            "ncaf_prediction_interval_sec": self.ncaf_prediction_interval_sec,
             # WindMouse Parameters (Main)
             "wm_gravity": self.wm_gravity,
             "wm_wind": self.wm_wind,
@@ -278,6 +292,7 @@ class Config:
             "wm_min_step": self.wm_min_step,
             "wm_min_delay": self.wm_min_delay,
             "wm_max_delay": self.wm_max_delay,
+            "wm_distance_threshold": self.wm_distance_threshold,
             # WindMouse Parameters (Sec)
             "wm_gravity_sec": self.wm_gravity_sec,
             "wm_wind_sec": self.wm_wind_sec,
@@ -285,6 +300,7 @@ class Config:
             "wm_min_step_sec": self.wm_min_step_sec,
             "wm_min_delay_sec": self.wm_min_delay_sec,
             "wm_max_delay_sec": self.wm_max_delay_sec,
+            "wm_distance_threshold_sec": self.wm_distance_threshold_sec,
             # Bezier Parameters (Main)
             "bezier_segments": self.bezier_segments,
             "bezier_ctrl_x": self.bezier_ctrl_x,
