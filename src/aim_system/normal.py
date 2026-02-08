@@ -11,6 +11,7 @@ import time
 from src.utils.config import config
 from src.utils.mouse import is_button_pressed
 from src.utils.debug_logger import log_move
+from src.utils.activation import check_aimbot_activation
 from .Triggerbot import process_triggerbot
 from .RCS import process_rcs
 
@@ -370,10 +371,12 @@ def process_normal_mode(targets, frame, img, tracker):
     # Main Aimbot 配置
     aim_enabled = getattr(config, "enableaim", False)
     selected_btn = getattr(config, "selected_mouse_button", None)
+    activation_type = getattr(config, "aimbot_activation_type", "hold_enable")
     
     # Sec Aimbot 配置
     aim_enabled_sec = getattr(config, "enableaim_sec", False)
     selected_btn_sec = getattr(config, "selected_mouse_button_sec", None)
+    activation_type_sec = getattr(config, "aimbot_activation_type_sec", "hold_enable")
     
     center_x = frame.xres / 2.0
     center_y = frame.yres / 2.0
@@ -408,7 +411,7 @@ def process_normal_mode(targets, frame, img, tracker):
         # === 優先處理 Main Aimbot ===
         main_fov = float(getattr(config, 'fovsize', tracker.fovsize))
         if distance_to_center <= main_fov:
-            if aim_enabled and selected_btn is not None and is_button_pressed(selected_btn):
+            if aim_enabled and selected_btn is not None and check_aimbot_activation(selected_btn, activation_type, is_sec=False):
                 try:
                     aim_type = getattr(config, "aim_type", "head")
                     aim_offsetX = float(getattr(config, "aim_offsetX", tracker.aim_offsetX))
@@ -438,7 +441,7 @@ def process_normal_mode(targets, frame, img, tracker):
         if not main_aimbot_active:
             sec_fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
             if distance_to_center <= sec_fov:
-                if aim_enabled_sec and selected_btn_sec is not None and is_button_pressed(selected_btn_sec):
+                if aim_enabled_sec and selected_btn_sec is not None and check_aimbot_activation(selected_btn_sec, activation_type_sec, is_sec=True):
                     try:
                         aim_type_sec = getattr(config, "aim_type_sec", "head")
                         aim_offsetX_sec = float(getattr(config, "aim_offsetX_sec", tracker.aim_offsetX_sec))

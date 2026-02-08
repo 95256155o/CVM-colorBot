@@ -1203,6 +1203,25 @@ class ViewerApp(ctk.CTk):
         self._option_widgets["selected_mouse_button"] = self.aimbot_button_option
         current_btn = getattr(config, "selected_mouse_button", 3)
         self.aimbot_button_option.set(BUTTONS.get(current_btn, BUTTONS[3]))
+        
+        # Activation Type
+        activation_types = ["Hold to Enable", "Hold to Disable", "Toggle", "Press to Enable"]
+        activation_type_map = {
+            "Hold to Enable": "hold_enable",
+            "Hold to Disable": "hold_disable",
+            "Toggle": "toggle",
+            "Press to Enable": "use_enable"
+        }
+        self.aimbot_activation_type_option = self._add_option_row_in_frame(sec_activation, "Type", activation_types, self._on_aimbot_activation_type_selected)
+        self._option_widgets["aimbot_activation_type"] = self.aimbot_activation_type_option
+        current_activation_type = getattr(config, "aimbot_activation_type", "hold_enable")
+        # 反向映射：從配置值找到顯示名稱
+        for display_name, config_value in activation_type_map.items():
+            if config_value == current_activation_type:
+                self.aimbot_activation_type_option.set(display_name)
+                break
+        else:
+            self.aimbot_activation_type_option.set("Hold to Enable")
 
     def _show_sec_aimbot_tab(self):
         self._clear_content()
@@ -1352,6 +1371,25 @@ class ViewerApp(ctk.CTk):
         self._option_widgets["selected_mouse_button_sec"] = self.aimbot_button_option_sec
         current_btn_sec = getattr(config, "selected_mouse_button_sec", 2)
         self.aimbot_button_option_sec.set(BUTTONS.get(current_btn_sec, BUTTONS[2]))
+        
+        # Activation Type
+        activation_types = ["Hold to Enable", "Hold to Disable", "Toggle", "Press to Enable"]
+        activation_type_map = {
+            "Hold to Enable": "hold_enable",
+            "Hold to Disable": "hold_disable",
+            "Toggle": "toggle",
+            "Press to Enable": "use_enable"
+        }
+        self.aimbot_activation_type_option_sec = self._add_option_row_in_frame(sec_activation, "Type", activation_types, self._on_aimbot_activation_type_sec_selected)
+        self._option_widgets["aimbot_activation_type_sec"] = self.aimbot_activation_type_option_sec
+        current_activation_type_sec = getattr(config, "aimbot_activation_type_sec", "hold_enable")
+        # 反向映射：從配置值找到顯示名稱
+        for display_name, config_value in activation_type_map.items():
+            if config_value == current_activation_type_sec:
+                self.aimbot_activation_type_option_sec.set(display_name)
+                break
+        else:
+            self.aimbot_activation_type_option_sec.set("Hold to Enable")
 
     def _show_tb_tab(self):
         self._clear_content()
@@ -3238,6 +3276,16 @@ class ViewerApp(ctk.CTk):
                 config.selected_mouse_button = k
                 self._log_config(f"Aim Key: {val}")
                 break
+    
+    def _on_aimbot_activation_type_selected(self, val):
+        activation_type_map = {
+            "Hold to Enable": "hold_enable",
+            "Hold to Disable": "hold_disable",
+            "Toggle": "toggle",
+            "Press to Enable": "use_enable"
+        }
+        config.aimbot_activation_type = activation_type_map.get(val, "hold_enable")
+        self._log_config(f"Aim Activation Type: {val}")
 
     def _on_tb_button_selected(self, val):
         for k, name in BUTTONS.items():
@@ -3390,6 +3438,16 @@ class ViewerApp(ctk.CTk):
                 config.selected_mouse_button_sec = k
                 self.tracker.selected_mouse_button_sec = k
                 break
+    
+    def _on_aimbot_activation_type_sec_selected(self, val):
+        activation_type_map = {
+            "Hold to Enable": "hold_enable",
+            "Hold to Disable": "hold_disable",
+            "Toggle": "toggle",
+            "Press to Enable": "use_enable"
+        }
+        config.aimbot_activation_type_sec = activation_type_map.get(val, "hold_enable")
+        self._log_config(f"Sec Aim Activation Type: {val}")
     
     def _on_button_mask_enabled_changed(self):
         """Button Mask 總開關回調"""

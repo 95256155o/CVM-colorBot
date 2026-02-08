@@ -36,6 +36,9 @@ class Config:
         self.selected_2_tb = 2
         self.in_game_sens = 0.235
         self.mouse_dpi = 800
+        # --- Aimbot Activation Type ---
+        self.aimbot_activation_type = "hold_enable"  # Main Aimbot: hold_enable, hold_disable, toggle, use_enable
+        self.aimbot_activation_type_sec = "hold_enable"  # Sec Aimbot: hold_enable, hold_disable, toggle, use_enable
         # --- Aimbot Mode ---
         self.mode = "Normal"        # Main Aimbot 模式: Normal, Silent, NCAF, WindMouse, Bezier
         self.mode_sec = "Normal"    # Sec Aimbot 模式: Normal, Silent, NCAF, WindMouse, Bezier
