@@ -75,9 +75,9 @@ class AimTracker:
         
         # Silent Mode 設置
         self.silent_distance = float(getattr(config, "silent_distance", 1.0))
-        self.silent_delay = float(getattr(config, "silent_delay", 0.1))
-        self.silent_move_delay = float(getattr(config, "silent_move_delay", 0.5))
-        self.silent_return_delay = float(getattr(config, "silent_return_delay", 0.5))
+        self.silent_delay = float(getattr(config, "silent_delay", 100.0))
+        self.silent_move_delay = float(getattr(config, "silent_move_delay", 500.0))
+        self.silent_return_delay = float(getattr(config, "silent_return_delay", 500.0))
         self.last_silent_click_time = 0  # 用於追蹤最後一次開槍時間
 
         self.in_game_sens = float(getattr(config, "in_game_sens", 0.235))

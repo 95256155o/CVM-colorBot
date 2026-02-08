@@ -9,7 +9,7 @@ from src.utils.config import config
 from .RCS import process_rcs
 
 
-def threaded_silent_move(controller, dx, dy, move_delay, return_delay):
+def threaded_silent_move(controller, dx, dy, move_delay_ms, return_delay_ms):
     """
     Silent 模式的移動-點擊-恢復函數
     
@@ -20,13 +20,13 @@ def threaded_silent_move(controller, dx, dy, move_delay, return_delay):
         controller: 滑鼠控制器實例
         dx: X 方向的移動距離
         dy: Y 方向的移動距離
-        move_delay: 移動滑鼠到目標位置的延遲（秒）
-        return_delay: 移動回原位置的延遲（秒）
+        move_delay_ms: 移動滑鼠到目標位置的延遲（毫秒）
+        return_delay_ms: 移動回原位置的延遲（毫秒）
     """
     controller.move(dx, dy)
-    time.sleep(move_delay)
+    time.sleep(move_delay_ms / 1000.0)  # 將毫秒轉換為秒
     controller.click()
-    time.sleep(return_delay)
+    time.sleep(return_delay_ms / 1000.0)  # 將毫秒轉換為秒
     controller.move(-dx, -dy)
 
 
@@ -51,9 +51,9 @@ def process_silent_mode(targets, frame, tracker):
     if not targets:
         return  # 避免沒有目標時崩潰
     
-    # 檢查兩次開槍間隔
+    # 檢查兩次開槍間隔（將毫秒轉換為秒）
     current_time = time.time()
-    if current_time - tracker.last_silent_click_time < tracker.silent_delay:
+    if current_time - tracker.last_silent_click_time < (tracker.silent_delay / 1000.0):
         return  # 未達到最小開槍間隔，跳過此次開槍
     
     # 計算螢幕中心
@@ -104,6 +104,7 @@ def process_silent_mode(targets, frame, tracker):
     tracker.last_silent_click_time = current_time
     
     # 在獨立線程中執行 Silent 移動（移動-點擊-恢復）
+    # 注意：參數已經是毫秒，threaded_silent_move 會將其轉換為秒
     threading.Thread(
         target=threaded_silent_move,
         args=(tracker.controller, dx_raw, dy_raw, tracker.silent_move_delay, tracker.silent_return_delay),

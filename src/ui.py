@@ -1103,14 +1103,14 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "Distance (Multiplier)", "silent_distance", 0.1, 10.0,
                                       float(getattr(config, "silent_distance", 1.0)),
                                       self._on_silent_distance_changed, is_float=True)
-            self._add_slider_in_frame(sec_params, "Delay", "silent_delay", 0.01, 5.0,
-                                      float(getattr(config, "silent_delay", 0.1)),
+            self._add_slider_in_frame(sec_params, "Delay (ms)", "silent_delay", 0.001, 300.0,
+                                      float(getattr(config, "silent_delay", 100.0)),
                                       self._on_silent_delay_changed, is_float=True)
-            self._add_slider_in_frame(sec_params, "Move Delay", "silent_move_delay", 0.001, 5.0,
-                                      float(getattr(config, "silent_move_delay", 0.5)),
+            self._add_slider_in_frame(sec_params, "Move Delay (ms)", "silent_move_delay", 0.001, 300.0,
+                                      float(getattr(config, "silent_move_delay", 500.0)),
                                       self._on_silent_move_delay_changed, is_float=True)
-            self._add_slider_in_frame(sec_params, "Return Delay", "silent_return_delay", 0.001, 5.0,
-                                      float(getattr(config, "silent_return_delay", 0.5)),
+            self._add_slider_in_frame(sec_params, "Return Delay (ms)", "silent_return_delay", 0.001, 300.0,
+                                      float(getattr(config, "silent_return_delay", 500.0)),
                                       self._on_silent_return_delay_changed, is_float=True)
             self._add_spacer_in_frame(sec_params)
             self._add_subtitle_in_frame(sec_params, "FOV")
@@ -2357,9 +2357,9 @@ class ViewerApp(ctk.CTk):
             self.tracker.rcs_rapid_click_threshold = config.rcs_rapid_click_threshold
             # Silent Mode
             self.tracker.silent_distance = getattr(config, "silent_distance", 1.0)
-            self.tracker.silent_delay = getattr(config, "silent_delay", 0.1)
-            self.tracker.silent_move_delay = getattr(config, "silent_move_delay", 0.5)
-            self.tracker.silent_return_delay = getattr(config, "silent_return_delay", 0.5)
+            self.tracker.silent_delay = getattr(config, "silent_delay", 100.0)
+            self.tracker.silent_move_delay = getattr(config, "silent_move_delay", 500.0)
+            self.tracker.silent_return_delay = getattr(config, "silent_return_delay", 500.0)
             self.tracker.in_game_sens = config.in_game_sens
             self.tracker.color = config.color
             self.tracker.mode = config.mode

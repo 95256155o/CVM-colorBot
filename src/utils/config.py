@@ -141,9 +141,9 @@ class Config:
         
         # --- Silent Mode Parameters ---
         self.silent_distance = 1.0  # 移動倍率（用於調整移動距離的倍數）
-        self.silent_delay = 0.1  # 兩次開槍的最小間隔（秒）
-        self.silent_move_delay = 0.5  # 移動滑鼠到目標位置的延遲（秒）
-        self.silent_return_delay = 0.5  # 移動回原位置的延遲（秒）
+        self.silent_delay = 100.0  # 兩次開槍的最小間隔（毫秒）
+        self.silent_move_delay = 500.0  # 移動滑鼠到目標位置的延遲（毫秒）
+        self.silent_return_delay = 500.0  # 移動回原位置的延遲（毫秒）
         
         # --- Anti-Smoke Settings ---
         self.anti_smoke_enabled = False  # Main Aimbot Anti-Smoke

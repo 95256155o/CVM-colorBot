@@ -111,9 +111,9 @@ def _apply_silent_aim(dx, dy, tracker, is_sec=False):
     dx_raw = int(dx)
     dy_raw = int(dy)
     
-    # 使用 Silent 模式的延遲參數
-    move_delay = getattr(tracker, "silent_move_delay", 0.5)
-    return_delay = getattr(tracker, "silent_return_delay", 0.5)
+    # 使用 Silent 模式的延遲參數（毫秒）
+    move_delay = getattr(tracker, "silent_move_delay", 500.0)
+    return_delay = getattr(tracker, "silent_return_delay", 500.0)
     
     threading.Thread(
         target=threaded_silent_move,
