@@ -301,6 +301,24 @@ _LOCK_CMD_BY_IDX = {
 # State tracked by mask manager (so we only send lock/unlock when needed)
 _mask_applied_idx = None
 
+# --------------------------------------------------------------------
+# Mouse Movement Lock helpers (for blocking physical mouse input)
+# --------------------------------------------------------------------
+
+# Movement lock state tracking
+_movement_lock_state = {
+    "lock_x": False,  # X 軸鎖定狀態
+    "lock_y": False,  # Y 軸鎖定狀態
+    "main_aimbot_locked": False,  # Main Aimbot 是否正在鎖定
+    "sec_aimbot_locked": False,  # Sec Aimbot 是否正在鎖定
+    "last_main_move_time": 0.0,  # Main Aimbot 最後移動時間
+    "last_sec_move_time": 0.0,  # Sec Aimbot 最後移動時間
+    "lock": threading.Lock()  # 線程鎖
+}
+
+# 鎖定超時時間（秒）- 如果 aimbot 超過這個時間沒有移動，自動解鎖
+_MOVEMENT_LOCK_TIMEOUT = 0.1
+
 def _send_cmd_no_wait(cmd: str):
     """Send 'km.<cmd>\\r' without waiting for response (listener ignores ASCII)."""
     if not is_connected:
@@ -327,6 +345,107 @@ def unlock_all_locks():
     """Best-effort unlock of all lockable buttons."""
     for i in range(5):
         unlock_button_idx(i)
+
+def lock_movement_x(lock: bool = True):
+    """鎖定或解鎖 X 軸物理鼠標移動"""
+    global _movement_lock_state
+    if not is_connected:
+        return
+    with _movement_lock_state["lock"]:
+        if _movement_lock_state["lock_x"] != lock:
+            _send_cmd_no_wait(f"lock_mx({1 if lock else 0})")
+            _movement_lock_state["lock_x"] = lock
+
+def lock_movement_y(lock: bool = True):
+    """鎖定或解鎖 Y 軸物理鼠標移動"""
+    global _movement_lock_state
+    if not is_connected:
+        return
+    with _movement_lock_state["lock"]:
+        if _movement_lock_state["lock_y"] != lock:
+            _send_cmd_no_wait(f"lock_my({1 if lock else 0})")
+            _movement_lock_state["lock_y"] = lock
+
+def update_movement_lock(lock_x: bool, lock_y: bool, is_main: bool = True):
+    """
+    更新移動鎖定狀態（僅更新狀態，實際鎖定由 tick_movement_lock_manager 處理）
+    
+    Args:
+        lock_x: 是否鎖定 X 軸
+        lock_y: 是否鎖定 Y 軸
+        is_main: 是否為 Main Aimbot（False 為 Sec Aimbot）
+    """
+    global _movement_lock_state
+    import time
+    
+    if not is_connected:
+        return
+    
+    current_time = time.time()
+    
+    with _movement_lock_state["lock"]:
+        if is_main:
+            _movement_lock_state["main_aimbot_locked"] = lock_x or lock_y
+            if lock_x or lock_y:
+                _movement_lock_state["last_main_move_time"] = current_time
+        else:
+            _movement_lock_state["sec_aimbot_locked"] = lock_x or lock_y
+            if lock_x or lock_y:
+                _movement_lock_state["last_sec_move_time"] = current_time
+
+def tick_movement_lock_manager():
+    """
+    移動鎖定管理器 tick 函數
+    檢查 aimbot 是否還在移動，如果超時則自動解鎖
+    """
+    global _movement_lock_state
+    import time
+    
+    if not is_connected:
+        return
+    
+    current_time = time.time()
+    
+    with _movement_lock_state["lock"]:
+        # 檢查 Main Aimbot 鎖定超時
+        if _movement_lock_state["main_aimbot_locked"]:
+            if current_time - _movement_lock_state["last_main_move_time"] > _MOVEMENT_LOCK_TIMEOUT:
+                _movement_lock_state["main_aimbot_locked"] = False
+        
+        # 檢查 Sec Aimbot 鎖定超時
+        if _movement_lock_state["sec_aimbot_locked"]:
+            if current_time - _movement_lock_state["last_sec_move_time"] > _MOVEMENT_LOCK_TIMEOUT:
+                _movement_lock_state["sec_aimbot_locked"] = False
+        
+        # 檢查是否需要解鎖
+        # 從 config 讀取設置
+        try:
+            from src.utils.config import config
+            main_lock_x = getattr(config, "mouse_lock_main_x", False)
+            main_lock_y = getattr(config, "mouse_lock_main_y", False)
+            sec_lock_x = getattr(config, "mouse_lock_sec_x", False)
+            sec_lock_y = getattr(config, "mouse_lock_sec_y", False)
+        except:
+            main_lock_x = False
+            main_lock_y = False
+            sec_lock_x = False
+            sec_lock_y = False
+        
+        # 計算最終鎖定狀態（main 或 sec 任一鎖定即鎖定）
+        should_lock_x = (
+            (main_lock_x and _movement_lock_state["main_aimbot_locked"]) or
+            (sec_lock_x and _movement_lock_state["sec_aimbot_locked"])
+        )
+        should_lock_y = (
+            (main_lock_y and _movement_lock_state["main_aimbot_locked"]) or
+            (sec_lock_y and _movement_lock_state["sec_aimbot_locked"])
+        )
+        
+        # 更新實際鎖定狀態
+        if _movement_lock_state["lock_x"] != should_lock_x:
+            lock_movement_x(should_lock_x)
+        if _movement_lock_state["lock_y"] != should_lock_y:
+            lock_movement_y(should_lock_y)
 
 def mask_manager_tick(selected_idx: int, aimbot_running: bool):
     """Manage button locks based on selected_idx and aimbot_running state."""
@@ -444,13 +563,26 @@ class Mouse:
 
     @staticmethod
     def cleanup():
-        global is_connected, makcu, _mask_applied_idx, _listener_thread
+        global is_connected, makcu, _mask_applied_idx, _listener_thread, _movement_lock_state
         # Always release any locks before closing port
         try:
             unlock_all_locks()
         except Exception:
             pass
         _mask_applied_idx = None
+        
+        # 解鎖所有移動鎖定
+        try:
+            with _movement_lock_state["lock"]:
+                _movement_lock_state["lock_x"] = False
+                _movement_lock_state["lock_y"] = False
+                _movement_lock_state["main_aimbot_locked"] = False
+                _movement_lock_state["sec_aimbot_locked"] = False
+            if is_connected:
+                lock_movement_x(False)
+                lock_movement_y(False)
+        except Exception:
+            pass
 
         is_connected = False
         if makcu and makcu.is_open:

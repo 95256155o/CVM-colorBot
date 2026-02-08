@@ -321,6 +321,13 @@ class AimTracker:
 
         # Button Mask 管理
         self._handle_button_mask()
+        
+        # Mouse Lock 管理器 tick
+        try:
+            from src.utils.mouse import tick_movement_lock_manager
+            tick_movement_lock_manager()
+        except Exception:
+            pass
 
         # 使用 CaptureService 讀取 BGR 幀
         bgr_img = self.app.capture.read_frame()

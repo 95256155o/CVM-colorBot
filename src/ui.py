@@ -419,6 +419,51 @@ class ViewerApp(ctk.CTk):
                                   int(getattr(config, "detection_min_contour_points", 5)),
                                   self._on_detection_min_contour_points_changed)
         
+        # ── MOUSE LOCK (collapsible) ──
+        mouse_lock_tooltip_text = (
+            "• Lock Main Aimbot X-Axis: Blocks physical mouse movement on X-axis when Main Aimbot is active. "
+            "Only aimbot-controlled movements will be applied.\n\n"
+            "• Lock Main Aimbot Y-Axis: Blocks physical mouse movement on Y-axis when Main Aimbot is active. "
+            "Only aimbot-controlled movements will be applied.\n\n"
+            "• Lock Sec Aimbot X-Axis: Blocks physical mouse movement on X-axis when Sec Aimbot is active. "
+            "Only aimbot-controlled movements will be applied.\n\n"
+            "• Lock Sec Aimbot Y-Axis: Blocks physical mouse movement on Y-axis when Sec Aimbot is active. "
+            "Only aimbot-controlled movements will be applied.\n\n"
+            "Note: The lock will automatically release when the aimbot button is released or aimbot stops moving."
+        )
+        sec_mouse_lock = self._create_collapsible_section(
+            self.content_frame,
+            "Mouse Lock",
+            initially_open=False,
+            tooltip_text=mouse_lock_tooltip_text
+        )
+        
+        # Lock Main Aimbot X-Axis
+        if not hasattr(self, 'var_mouse_lock_main_x'):
+            self.var_mouse_lock_main_x = tk.BooleanVar(value=getattr(config, "mouse_lock_main_x", False))
+        self._add_switch_in_frame(sec_mouse_lock, "Lock Main Aimbot X-Axis", self.var_mouse_lock_main_x, self._on_mouse_lock_main_x_changed)
+        self._checkbox_vars["mouse_lock_main_x"] = self.var_mouse_lock_main_x
+        
+        # Lock Main Aimbot Y-Axis
+        if not hasattr(self, 'var_mouse_lock_main_y'):
+            self.var_mouse_lock_main_y = tk.BooleanVar(value=getattr(config, "mouse_lock_main_y", False))
+        self._add_switch_in_frame(sec_mouse_lock, "Lock Main Aimbot Y-Axis", self.var_mouse_lock_main_y, self._on_mouse_lock_main_y_changed)
+        self._checkbox_vars["mouse_lock_main_y"] = self.var_mouse_lock_main_y
+        
+        self._add_spacer_in_frame(sec_mouse_lock)
+        
+        # Lock Sec Aimbot X-Axis
+        if not hasattr(self, 'var_mouse_lock_sec_x'):
+            self.var_mouse_lock_sec_x = tk.BooleanVar(value=getattr(config, "mouse_lock_sec_x", False))
+        self._add_switch_in_frame(sec_mouse_lock, "Lock Sec Aimbot X-Axis", self.var_mouse_lock_sec_x, self._on_mouse_lock_sec_x_changed)
+        self._checkbox_vars["mouse_lock_sec_x"] = self.var_mouse_lock_sec_x
+        
+        # Lock Sec Aimbot Y-Axis
+        if not hasattr(self, 'var_mouse_lock_sec_y'):
+            self.var_mouse_lock_sec_y = tk.BooleanVar(value=getattr(config, "mouse_lock_sec_y", False))
+        self._add_switch_in_frame(sec_mouse_lock, "Lock Sec Aimbot Y-Axis", self.var_mouse_lock_sec_y, self._on_mouse_lock_sec_y_changed)
+        self._checkbox_vars["mouse_lock_sec_y"] = self.var_mouse_lock_sec_y
+        
         # ── BUTTON MASK (collapsible) ──
         sec_button_mask = self._create_collapsible_section(self.content_frame, "Button Mask", initially_open=False)
         
@@ -3565,6 +3610,34 @@ class ViewerApp(ctk.CTk):
             "mask_side4_button": "Side 4 (S4)",
             "mask_side5_button": "Side 5 (S5)"
         }
+    
+    def _on_mouse_lock_main_x_changed(self):
+        """Mouse Lock Main Aimbot X-Axis 開關回調"""
+        config.mouse_lock_main_x = self.var_mouse_lock_main_x.get()
+        # 立即更新鎖定狀態
+        from src.utils.mouse import tick_movement_lock_manager
+        tick_movement_lock_manager()
+    
+    def _on_mouse_lock_main_y_changed(self):
+        """Mouse Lock Main Aimbot Y-Axis 開關回調"""
+        config.mouse_lock_main_y = self.var_mouse_lock_main_y.get()
+        # 立即更新鎖定狀態
+        from src.utils.mouse import tick_movement_lock_manager
+        tick_movement_lock_manager()
+    
+    def _on_mouse_lock_sec_x_changed(self):
+        """Mouse Lock Sec Aimbot X-Axis 開關回調"""
+        config.mouse_lock_sec_x = self.var_mouse_lock_sec_x.get()
+        # 立即更新鎖定狀態
+        from src.utils.mouse import tick_movement_lock_manager
+        tick_movement_lock_manager()
+    
+    def _on_mouse_lock_sec_y_changed(self):
+        """Mouse Lock Sec Aimbot Y-Axis 開關回調"""
+        config.mouse_lock_sec_y = self.var_mouse_lock_sec_y.get()
+        # 立即更新鎖定狀態
+        from src.utils.mouse import tick_movement_lock_manager
+        tick_movement_lock_manager()
     
     def _check_for_updates(self):
         """Check for updates in background"""

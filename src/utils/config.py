@@ -201,6 +201,12 @@ class Config:
         self.mask_side4_button = False    # S4 (3)
         self.mask_side5_button = False    # S5 (4)
         
+        # --- Mouse Lock Settings ---
+        self.mouse_lock_main_x = False        # 鎖定 Main Aimbot X 軸
+        self.mouse_lock_main_y = False        # 鎖定 Main Aimbot Y 軸
+        self.mouse_lock_sec_x = False         # 鎖定 Sec Aimbot X 軸
+        self.mouse_lock_sec_y = False         # 鎖定 Sec Aimbot Y 軸
+        
         # 載入保存的配置（如果存在）
         self.load_from_file()
     
@@ -384,7 +390,13 @@ class Config:
             "mask_right_button": self.mask_right_button,
             "mask_middle_button": self.mask_middle_button,
             "mask_side4_button": self.mask_side4_button,
-            "mask_side5_button": self.mask_side5_button
+            "mask_side5_button": self.mask_side5_button,
+            
+            # Mouse Lock Settings
+            "mouse_lock_main_x": self.mouse_lock_main_x,
+            "mouse_lock_main_y": self.mouse_lock_main_y,
+            "mouse_lock_sec_x": self.mouse_lock_sec_x,
+            "mouse_lock_sec_y": self.mouse_lock_sec_y
         }
     
     def from_dict(self, data):

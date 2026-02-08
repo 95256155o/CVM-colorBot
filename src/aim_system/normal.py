@@ -88,6 +88,22 @@ def _apply_normal_aim(dx, dy, distance_to_center, tracker, is_sec=False):
     
     ddx, ddy = tracker._clip_movement(ndx, ndy)
     
+    # 更新移動鎖定狀態（如果啟用）
+    try:
+        from src.utils.mouse import update_movement_lock
+        if not is_sec:
+            # Main Aimbot
+            lock_x = getattr(config, "mouse_lock_main_x", False)
+            lock_y = getattr(config, "mouse_lock_main_y", False)
+        else:
+            # Sec Aimbot
+            lock_x = getattr(config, "mouse_lock_sec_x", False)
+            lock_y = getattr(config, "mouse_lock_sec_y", False)
+        if lock_x or lock_y:
+            update_movement_lock(lock_x, lock_y, is_main=not is_sec)
+    except Exception:
+        pass
+    
     # 根據距離動態調整延遲
     distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
     dynamic_delay = 0.005 * (1.0 - distance_factor * 0.4)
@@ -106,6 +122,22 @@ def _apply_silent_aim(dx, dy, tracker, is_sec=False):
     Silent 模式瞄準：移動 → 點擊 → 恢復原位
     """
     from .silent import threaded_silent_move
+    
+    # 更新移動鎖定狀態（如果啟用）
+    try:
+        from src.utils.mouse import update_movement_lock
+        if not is_sec:
+            # Main Aimbot
+            lock_x = getattr(config, "mouse_lock_main_x", False)
+            lock_y = getattr(config, "mouse_lock_main_y", False)
+        else:
+            # Sec Aimbot
+            lock_x = getattr(config, "mouse_lock_sec_x", False)
+            lock_y = getattr(config, "mouse_lock_sec_y", False)
+        if lock_x or lock_y:
+            update_movement_lock(lock_x, lock_y, is_main=not is_sec)
+    except Exception:
+        pass
     
     # 轉換為整數（不再應用速度倍數，因為 Silent 模式使用固定移動）
     dx_raw = int(dx)
@@ -246,6 +278,22 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         ndy *= scale
 
     ddx, ddy = tracker._clip_movement(ndx, ndy)
+    
+    # 更新移動鎖定狀態（如果啟用）
+    try:
+        from src.utils.mouse import update_movement_lock
+        if not is_sec:
+            # Main Aimbot
+            lock_x = getattr(config, "mouse_lock_main_x", False)
+            lock_y = getattr(config, "mouse_lock_main_y", False)
+        else:
+            # Sec Aimbot
+            lock_x = getattr(config, "mouse_lock_sec_x", False)
+            lock_y = getattr(config, "mouse_lock_sec_y", False)
+        if lock_x or lock_y:
+            update_movement_lock(lock_x, lock_y, is_main=not is_sec)
+    except Exception:
+        pass
 
     distance_factor = min(distance_with_pred / max(fov, 1.0), 1.0)
     dynamic_delay = 0.003 * (1.0 - distance_factor * 0.3)
@@ -324,6 +372,22 @@ def _apply_windmouse_aim(dx, dy, tracker, is_sec=False):
     path = smooth_aimer.calculate_smooth_path(ndx, ndy, wm_config)
     
     if path:
+        # 更新移動鎖定狀態（如果啟用）
+        try:
+            from src.utils.mouse import update_movement_lock
+            if not is_sec:
+                # Main Aimbot
+                lock_x = getattr(config, "mouse_lock_main_x", False)
+                lock_y = getattr(config, "mouse_lock_main_y", False)
+            else:
+                # Sec Aimbot
+                lock_x = getattr(config, "mouse_lock_sec_x", False)
+                lock_y = getattr(config, "mouse_lock_sec_y", False)
+            if lock_x or lock_y:
+                update_movement_lock(lock_x, lock_y, is_main=not is_sec)
+        except Exception:
+            pass
+        
         def execute_path():
             for step_dx, step_dy, delay in path:
                 try:
@@ -375,6 +439,22 @@ def _apply_bezier_aim(dx, dy, distance_to_center, tracker, is_sec=False):
     deltas = bezier.get_movement_deltas(ndx, ndy)
 
     if deltas:
+        # 更新移動鎖定狀態（如果啟用）
+        try:
+            from src.utils.mouse import update_movement_lock
+            if not is_sec:
+                # Main Aimbot
+                lock_x = getattr(config, "mouse_lock_main_x", False)
+                lock_y = getattr(config, "mouse_lock_main_y", False)
+            else:
+                # Sec Aimbot
+                lock_x = getattr(config, "mouse_lock_sec_x", False)
+                lock_y = getattr(config, "mouse_lock_sec_y", False)
+            if lock_x or lock_y:
+                update_movement_lock(lock_x, lock_y, is_main=not is_sec)
+        except Exception:
+            pass
+        
         # 根據距離動態調整延遲
         distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
         step_delay = delay * (1.0 - distance_factor * 0.3)
