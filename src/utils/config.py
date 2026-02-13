@@ -36,6 +36,22 @@ class Config:
         self.selected_2_tb = 2
         self.in_game_sens = 0.235
         self.mouse_dpi = 800
+        self.mouse_api = "Serial"  # Serial, Arduino, SendInput, Net, MakV2, DHZ
+        self.auto_connect_mouse_api = False
+        self.serial_port_mode = "Auto"  # Auto, Manual
+        self.serial_port = ""
+        self.arduino_port = ""
+        self.arduino_baud = 115200
+        self.arduino_16_bit_mouse = True
+        self.net_ip = "192.168.2.188"
+        self.net_port = "6234"
+        self.net_uuid = ""
+        self.net_mac = ""  # deprecated alias of net_uuid
+        self.makv2_port = ""
+        self.makv2_baud = 4000000
+        self.dhz_ip = "192.168.2.188"
+        self.dhz_port = "5000"
+        self.dhz_random = 0
         # --- Aimbot Activation Type ---
         self.aimbot_activation_type = "hold_enable"  # Main Aimbot: hold_enable, hold_disable, toggle, use_enable
         self.aimbot_activation_type_sec = "hold_enable"  # Sec Aimbot: hold_enable, hold_disable, toggle, use_enable
@@ -193,6 +209,9 @@ class Config:
         self.capture_offset_x = 0
         self.capture_offset_y = 0
         
+        # --- Processing FPS Limit ---
+        self.target_fps = 80  # Target processing FPS (limits main loop frequency)
+        
         # --- Button Mask Settings ---
         self.button_mask_enabled = False  # 總開關
         self.mask_left_button = False     # L (0)
@@ -241,6 +260,22 @@ class Config:
             "selected_2_tb": self.selected_2_tb,
             "in_game_sens": self.in_game_sens,
             "mouse_dpi": self.mouse_dpi,
+            "mouse_api": self.mouse_api,
+            "auto_connect_mouse_api": self.auto_connect_mouse_api,
+            "serial_port_mode": self.serial_port_mode,
+            "serial_port": self.serial_port,
+            "arduino_port": self.arduino_port,
+            "arduino_baud": self.arduino_baud,
+            "arduino_16_bit_mouse": self.arduino_16_bit_mouse,
+            "net_ip": self.net_ip,
+            "net_port": self.net_port,
+            "net_uuid": self.net_uuid,
+            "net_mac": self.net_mac,
+            "makv2_port": self.makv2_port,
+            "makv2_baud": self.makv2_baud,
+            "dhz_ip": self.dhz_ip,
+            "dhz_port": self.dhz_port,
+            "dhz_random": self.dhz_random,
             
             # Aimbot Mode
             "mode": self.mode,
@@ -404,6 +439,21 @@ class Config:
         for key, value in data.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+        serial_mode = str(getattr(self, "serial_port_mode", "Auto")).strip().lower()
+        self.serial_port_mode = "Manual" if serial_mode == "manual" else "Auto"
+        self.serial_port = str(getattr(self, "serial_port", "")).strip()
+        self.arduino_port = str(getattr(self, "arduino_port", "")).strip()
+        try:
+            self.arduino_baud = int(getattr(self, "arduino_baud", 115200))
+        except Exception:
+            self.arduino_baud = 115200
+        self.arduino_16_bit_mouse = bool(getattr(self, "arduino_16_bit_mouse", True))
+        # Backward compatibility: old config used `net_mac`.
+        net_uuid = str(getattr(self, "net_uuid", "")).strip()
+        net_mac = str(getattr(self, "net_mac", "")).strip()
+        if not net_uuid and net_mac:
+            self.net_uuid = net_mac
+        self.net_mac = self.net_uuid
     
     def save_to_file(self, filename="config.json"):
         """保存配置到文件"""
@@ -427,4 +477,3 @@ class Config:
 
 
 config = Config()
-

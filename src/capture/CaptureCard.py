@@ -38,41 +38,144 @@ class CaptureCardCamera:
         # 不存儲靜態區域 - 將在 get_latest_frame 中動態計算
         self.cap = None
         self.running = True
+        self.backend_used = None
         
-        # 按優先順序嘗試不同的後端
-        preferred_backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]
+        # 優先使用 MSMF 後端（對高 FPS 支持更好）
+        preferred_backends = [cv2.CAP_MSMF, cv2.CAP_DSHOW, cv2.CAP_ANY]
+        
         for backend in preferred_backends:
             self.cap = cv2.VideoCapture(self.device_index, backend)
             if self.cap.isOpened():
-                # 設置分辨率和幀率
+                self.backend_used = backend
+                
+                # 1. 先設置分辨率
                 self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(self.frame_width))
                 self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(self.frame_height))
-                self.cap.set(cv2.CAP_PROP_FPS, float(self.target_fps))
                 
-                # 嘗試設置首選的 fourcc 格式
+                # 2. 嘗試設置 FourCC 格式（必須在設置 FPS 之前）
+                # 不同的格式支持不同的 FPS 範圍，所以要先確定格式
+                # 對於每個格式，都嘗試設置並驗證 FPS
+                config_success = False
+                
                 for fourcc in self.fourcc_pref:
                     try:
+                        # 重新設置格式
                         fourcc_code = cv2.VideoWriter_fourcc(*fourcc)
                         self.cap.set(cv2.CAP_PROP_FOURCC, fourcc_code)
+                        
+                        # 驗證格式是否設置成功
+                        actual_fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
+                        if actual_fourcc != fourcc_code:
+                            print(f"[CaptureCard] Format {fourcc} not accepted, got {actual_fourcc}")
+                            continue
+                        
                         print(f"[CaptureCard] Set fourcc to {fourcc}")
-                        break
+                        
+                        # 3. 在格式確定後，再設置 FPS（關鍵！）
+                        self.cap.set(cv2.CAP_PROP_FPS, float(self.target_fps))
+                        
+                        # 4. 驗證實際獲得的 FPS
+                        actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+                        fps_diff = abs(actual_fps - self.target_fps)
+                        
+                        if fps_diff > 1.0:  # 允許 1 FPS 誤差
+                            print(f"[CaptureCard] Format {fourcc}: Requested {self.target_fps} FPS, but got {actual_fps} FPS")
+                            # 如果 FPS 差距太大（例如只有 60），嘗試下一個格式
+                            if actual_fps < self.target_fps * 0.5:
+                                print(f"[CaptureCard] Format {fourcc} doesn't support {self.target_fps} FPS, trying next format...")
+                                continue  # 嘗試下一個格式
+                            else:
+                                # FPS 接近目標，接受這個配置
+                                print(f"[CaptureCard] FPS close enough: {actual_fps} FPS (target: {self.target_fps})")
+                                config_success = True
+                                break
+                        else:
+                            print(f"[CaptureCard] FPS set successfully: {actual_fps} FPS (target: {self.target_fps})")
+                            config_success = True
+                            break
+                            
                     except Exception as e:
                         print(f"[CaptureCard] Failed to set fourcc {fourcc}: {e}")
                         continue
                 
+                if not config_success:
+                    print(f"[CaptureCard] Warning: Could not find a format that supports {self.target_fps} FPS")
+                    # 繼續使用當前配置，即使 FPS 不達標
+                    actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+                    print(f"[CaptureCard] Using available FPS: {actual_fps}")
+                
+                # 5. 設置最小緩衝區以降低延遲
+                try:
+                    self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    buffer_size = self.cap.get(cv2.CAP_PROP_BUFFERSIZE)
+                    print(f"[CaptureCard] Buffer size set to: {buffer_size}")
+                except Exception as e:
+                    print(f"[CaptureCard] Failed to set buffer size: {e}")
+                
+                # 6. 嘗試啟用硬體加速（如果支援）
+                self._try_enable_hardware_acceleration()
+                
+                # 7. DirectShow 特定優化
+                if backend == cv2.CAP_DSHOW:
+                    try:
+                        # 設置自動曝光為關閉（如果支援）可以降低延遲
+                        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # 0.25 = 手動模式
+                        # 設置自動白平衡為關閉
+                        self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)
+                    except Exception as e:
+                        pass  # 某些設備可能不支援這些屬性
+                
+                actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
                 print(f"[CaptureCard] Successfully opened camera {self.device_index} with backend {backend}")
-                print(f"[CaptureCard] Resolution: {self.frame_width}x{self.frame_height}, FPS: {self.target_fps}")
+                print(f"[CaptureCard] Resolution: {self.frame_width}x{self.frame_height}, FPS: {actual_fps}")
                 break
             else:
-                self.cap.release()
+                if self.cap:
+                    self.cap.release()
                 self.cap = None
         
         if self.cap is None or not self.cap.isOpened():
             raise RuntimeError(f"Failed to open capture card at device index {self.device_index}")
 
+    def _try_enable_hardware_acceleration(self):
+        """
+        嘗試啟用硬體加速（如果支援）
+        檢查並設置硬體解碼相關屬性
+        """
+        if self.cap is None:
+            return
+        
+        # 檢查 OpenCV 是否編譯了硬體加速支援
+        try:
+            # 嘗試設置硬體加速相關屬性（如果後端支援）
+            if self.backend_used == cv2.CAP_MSMF:
+                # Media Foundation 後端可能支援硬體加速
+                try:
+                    # CAP_PROP_HW_ACCELERATION = 171 (OpenCV 4.5+)
+                    # 嘗試啟用硬體加速
+                    if hasattr(cv2, 'CAP_PROP_HW_ACCELERATION'):
+                        self.cap.set(cv2.CAP_PROP_HW_ACCELERATION, 1)  # 1 = 啟用
+                        hw_accel = self.cap.get(cv2.CAP_PROP_HW_ACCELERATION)
+                        if hw_accel > 0:
+                            print(f"[CaptureCard] Hardware acceleration enabled: {hw_accel}")
+                except Exception as e:
+                    pass  # 某些版本可能不支援
+                    
+                # 嘗試設置硬體設備類型
+                try:
+                    # CAP_PROP_HW_DEVICE = 172 (OpenCV 4.5+)
+                    if hasattr(cv2, 'CAP_PROP_HW_DEVICE'):
+                        # 0 = AUTO, 1 = D3D11, 2 = CUDA, 3 = OPENCL
+                        self.cap.set(cv2.CAP_PROP_HW_DEVICE, 0)  # AUTO
+                except Exception as e:
+                    pass
+        except Exception as e:
+            print(f"[CaptureCard] Hardware acceleration check failed: {e}")
+
     def get_latest_frame(self):
         """
         獲取最新的視頻幀
+        優化：丟棄緩衝區中的舊幀，只讀取最新幀以降低延遲
         
         Returns:
             numpy.ndarray or None: 最新的視頻幀，如果無法讀取則返回 None
@@ -80,9 +183,24 @@ class CaptureCardCamera:
         if not self.cap or not self.cap.isOpened():
             return None
         
-        ret, frame = self.cap.read()
-        if not ret or frame is None:
+        # 優化 3: 丟棄緩衝區中的舊幀，只取最新幀
+        # 連續讀取多次以清空緩衝區，最後一次才是最新幀
+        # 這樣可以確保獲取的是最新的畫面，而不是緩衝區中的舊畫面
+        latest_frame = None
+        max_discard = 3  # 最多丟棄 3 幀（根據 240 FPS 和緩衝區設置，通常 1-2 幀就夠了）
+        
+        for _ in range(max_discard):
+            ret, frame = self.cap.read()
+            if ret and frame is not None:
+                latest_frame = frame
+            else:
+                # 如果讀取失敗，返回最後一次成功讀取的幀
+                break
+        
+        if latest_frame is None:
             return None
+        
+        frame = latest_frame
         
         # 動態計算區域基於當前 config 值
         # 這允許在 X/Y Range 或 Offset 更改時實時更新

@@ -16,6 +16,7 @@ _triggerbot_state = {
     "last_trigger_time": 0.0,  # 最後觸發時間（用於 cooldown）
     "current_cooldown": 0.0,  # 當前使用的 cooldown 值（從範圍中隨機選擇）
     "enter_range_time": None,  # 第一次進入範圍的時間
+    "random_delay": None,  # 固定的隨機延遲值（在第一次進入範圍時設置）
     "burst_state": None,  # 連發狀態：None, "waiting", "bursting"
     "burst_thread": None,  # 連發線程
     "burst_lock": threading.Lock()  # 線程鎖
@@ -170,6 +171,7 @@ def process_triggerbot(frame, img, model, controller, tbdelay_min, tbdelay_max,
             with _triggerbot_state["burst_lock"]:
                 if _triggerbot_state["burst_state"] != "bursting":
                     _triggerbot_state["enter_range_time"] = None
+                    _triggerbot_state["random_delay"] = None
                     _triggerbot_state["burst_state"] = None
             return "NO_TARGET"
         
@@ -181,6 +183,7 @@ def process_triggerbot(frame, img, model, controller, tbdelay_min, tbdelay_max,
             current_state = _triggerbot_state["burst_state"]
             enter_time = _triggerbot_state["enter_range_time"]
             last_trigger = _triggerbot_state["last_trigger_time"]
+            random_delay = _triggerbot_state.get("random_delay")
         
         # 【Cooldown 檢查】- 使用上次觸發時選擇的 cooldown 值
         current_cooldown = _triggerbot_state.get("current_cooldown", 0.0)
@@ -193,48 +196,78 @@ def process_triggerbot(frame, img, model, controller, tbdelay_min, tbdelay_max,
         if current_state == "bursting":
             return "BURSTING"
         
-        # 【Delay 等待】- 第一次進入範圍時，開始計時
+        # 【Delay 等待】- 第一次進入範圍時，開始計時並固定 delay 值
         if enter_time is None:
+            # 計算隨機延遲（在第一次進入時固定）
+            random_delay = random.uniform(tbdelay_min, tbdelay_max)
             with _triggerbot_state["burst_lock"]:
                 _triggerbot_state["enter_range_time"] = now
+                _triggerbot_state["random_delay"] = random_delay
                 _triggerbot_state["burst_state"] = "waiting"
             enter_time = now
+        else:
+            # 使用已經固定的 delay 值
+            if random_delay is None:
+                random_delay = random.uniform(tbdelay_min, tbdelay_max)
+                with _triggerbot_state["burst_lock"]:
+                    _triggerbot_state["random_delay"] = random_delay
         
-        # 從範圍中隨機選擇 delay
-        random_delay = random.uniform(tbdelay_min, tbdelay_max)
         elapsed = now - enter_time
         
-        if elapsed < random_delay:
-            # Delay 時間未到
-            return f"WAITING ({elapsed:.2f}s/{random_delay:.2f}s)"
-        
-        # 【連發射擊】- Delay 時間已到，開始執行連發序列
-        with _triggerbot_state["burst_lock"]:
-            # 檢查是否已經有連發線程在運行
-            if _triggerbot_state["burst_thread"] is not None and _triggerbot_state["burst_thread"].is_alive():
-                return "BURST_IN_PROGRESS"
+        # 如果 delay 為 0 或已經過了，直接觸發（避免線程開銷）
+        if random_delay <= 0 or elapsed >= random_delay:
+            # 單發模式且 delay 為 0，直接執行（避免線程開銷）
+            if tbburst_count_min == 1 and tbburst_count_max == 1 and random_delay <= 0:
+                try:
+                    random_hold = random.uniform(tbhold_min, tbhold_max)
+                    controller.press()
+                    time.sleep(random_hold / 1000.0)
+                    controller.release()
+                except Exception as e:
+                    print(f"[Triggerbot direct error] {e}")
+                
+                # 更新狀態
+                with _triggerbot_state["burst_lock"]:
+                    _triggerbot_state["last_trigger_time"] = now
+                    _triggerbot_state["enter_range_time"] = None
+                    _triggerbot_state["random_delay"] = None
+                    if tbcooldown_max > 0:
+                        _triggerbot_state["current_cooldown"] = random.uniform(tbcooldown_min, tbcooldown_max)
+                    else:
+                        _triggerbot_state["current_cooldown"] = 0.0
+                return "TRIGGERED"
             
-            # 創建新的連發線程
-            burst_thread = threading.Thread(
-                target=_execute_burst_sequence,
-                args=(controller, tbburst_count_min, tbburst_count_max, tbhold_min, tbhold_max, 
-                      tbburst_interval_min, tbburst_interval_max),
-                daemon=True
-            )
-            _triggerbot_state["burst_thread"] = burst_thread
-            _triggerbot_state["burst_state"] = "bursting"
-            _triggerbot_state["last_trigger_time"] = now
-            _triggerbot_state["enter_range_time"] = None  # 重置進入範圍計時器
-            # 為下次觸發從範圍中隨機選擇新的 cooldown 值
-            if tbcooldown_max > 0:
-                _triggerbot_state["current_cooldown"] = random.uniform(tbcooldown_min, tbcooldown_max)
-            else:
-                _triggerbot_state["current_cooldown"] = 0.0
-        
-        # 啟動連發線程
-        burst_thread.start()
-        
-        return f"BURST_STARTED ({tbburst_count_min}-{tbburst_count_max} shots)"
+            # 【連發射擊】- Delay 時間已到，開始執行連發序列
+            with _triggerbot_state["burst_lock"]:
+                # 檢查是否已經有連發線程在運行
+                if _triggerbot_state["burst_thread"] is not None and _triggerbot_state["burst_thread"].is_alive():
+                    return "BURST_IN_PROGRESS"
+                
+                # 創建新的連發線程
+                burst_thread = threading.Thread(
+                    target=_execute_burst_sequence,
+                    args=(controller, tbburst_count_min, tbburst_count_max, tbhold_min, tbhold_max, 
+                          tbburst_interval_min, tbburst_interval_max),
+                    daemon=True
+                )
+                _triggerbot_state["burst_thread"] = burst_thread
+                _triggerbot_state["burst_state"] = "bursting"
+                _triggerbot_state["last_trigger_time"] = now
+                _triggerbot_state["enter_range_time"] = None  # 重置進入範圍計時器
+                _triggerbot_state["random_delay"] = None  # 重置延遲值
+                # 為下次觸發從範圍中隨機選擇新的 cooldown 值
+                if tbcooldown_max > 0:
+                    _triggerbot_state["current_cooldown"] = random.uniform(tbcooldown_min, tbcooldown_max)
+                else:
+                    _triggerbot_state["current_cooldown"] = 0.0
+            
+            # 啟動連發線程
+            burst_thread.start()
+            
+            return f"BURST_STARTED ({tbburst_count_min}-{tbburst_count_max} shots)"
+        else:
+            # Delay 時間未到
+            return f"WAITING ({elapsed:.3f}s/{random_delay:.3f}s)"
         
     except Exception as e:
         print("[Triggerbot error]", e)

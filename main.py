@@ -191,17 +191,30 @@ class AimTracker:
         在後台線程中持續執行追蹤操作，控制幀率以達到目標 FPS。
         每次循環調用 track_once() 進行一次完整的追蹤處理。
         """
-        period = 1.0 / float(self._target_fps)
         while not self._stop_event.is_set():
+            period = 1.0 / float(self._target_fps)
             start = time.time()
             try:
                 self.track_once()
             except Exception as e:
                 print("[Track error]", e)
             elapsed = time.time() - start
-            to_sleep = period - elapsed
+            to_sleep = max(0, period - elapsed)
             if to_sleep > 0:
                 time.sleep(to_sleep)
+    
+    def set_target_fps(self, fps):
+        """
+        Dynamically update target FPS
+        
+        Args:
+            fps: New target FPS value
+        """
+        if fps < 1 or fps > 1000:
+            print(f"[AimTracker] Invalid FPS: {fps}, using default 80")
+            fps = 80
+        self._target_fps = float(fps)
+        print(f"[AimTracker] Target FPS updated to: {fps}")
     
     def _handle_button_mask(self):
         """
@@ -805,8 +818,9 @@ if __name__ == "__main__":
     
     temp_app = TempApp(capture_service)
     
-    # 創建 AimTracker
-    tracker = AimTracker(app=temp_app, target_fps=80)
+    # 創建 AimTracker (use config value if available)
+    target_fps = getattr(config, "target_fps", 80)
+    tracker = AimTracker(app=temp_app, target_fps=target_fps)
     
     # 設置外觀
     ctk.set_appearance_mode("Dark")

@@ -7,6 +7,7 @@ import tkinter as tk
 import os
 import json
 import cv2
+import threading
 from PIL import Image
 from functools import partial
 
@@ -26,6 +27,7 @@ COLOR_TEXT = "#E0E0E0"        # 灰白文字
 COLOR_TEXT_DIM = "#757575"    # 暗灰輔助文字
 COLOR_BORDER = "#2C2C2C"      # 非常淡的分割線
 COLOR_DANGER = "#CF6679"      # 柔和紅
+COLOR_SUCCESS = "#4CAF50"
 
 FONT_MAIN = ("Roboto", 11)
 FONT_BOLD = ("Roboto", 11, "bold")
@@ -47,7 +49,7 @@ class ViewerApp(ctk.CTk):
         
         # --- 視窗設置 ---
         self.title("CVM colorBot")
-        self.geometry("1210x950")
+        self.geometry("1280x950")
         
         # 注意：使用 overrideredirect 會導致任務欄不顯示
         # 如果需要任務欄圖標，註釋掉下面這行
@@ -86,6 +88,23 @@ class ViewerApp(ctk.CTk):
         self.saved_udp_ip = getattr(config, "udp_ip", "127.0.0.1")
         self.saved_udp_port = getattr(config, "udp_port", "1234")
         self.saved_ndi_source = getattr(config, "last_ndi_source", None)
+        self.saved_mouse_api = getattr(config, "mouse_api", "Serial")
+        self.saved_net_ip = getattr(config, "net_ip", "192.168.2.188")
+        self.saved_net_port = getattr(config, "net_port", "6234")
+        self.saved_net_uuid = getattr(config, "net_uuid", getattr(config, "net_mac", ""))
+        self.saved_serial_port_mode = str(getattr(config, "serial_port_mode", "Auto"))
+        self.saved_serial_port = str(getattr(config, "serial_port", ""))
+        self.saved_arduino_port = str(getattr(config, "arduino_port", ""))
+        self.saved_arduino_baud = str(getattr(config, "arduino_baud", 115200))
+        self.saved_makv2_port = getattr(config, "makv2_port", "")
+        self.saved_makv2_baud = str(getattr(config, "makv2_baud", 4000000))
+        self.saved_dhz_ip = getattr(config, "dhz_ip", "192.168.2.188")
+        self.saved_dhz_port = str(getattr(config, "dhz_port", "5000"))
+        self.saved_dhz_random = str(getattr(config, "dhz_random", 0))
+        self.saved_auto_connect_mouse_api = bool(getattr(config, "auto_connect_mouse_api", False))
+        self._mouse_api_connecting = False
+        self._mouse_api_connect_job_id = 0
+        self._mouse_api_connect_timeout_ms = 12000
         
         # --- 構建界面 ---
         self._build_layout()
@@ -111,7 +130,7 @@ class ViewerApp(ctk.CTk):
         
         # 內容區
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.content_frame.grid(row=1, column=1, sticky="nsew", padx=40, pady=20)
+        self.content_frame.grid(row=1, column=1, sticky="nsew", padx=24, pady=20)
         
         self._show_general_tab()
 
@@ -189,7 +208,7 @@ class ViewerApp(ctk.CTk):
 
     def _build_sidebar(self):
         """側邊欄：純圖標或簡約文字"""
-        self.sidebar = ctk.CTkFrame(self, width=180, fg_color=COLOR_BG, corner_radius=0)
+        self.sidebar = ctk.CTkFrame(self, width=165, fg_color=COLOR_BG, corner_radius=0)
         self.sidebar.grid(row=1, column=0, sticky="ns")
         self.sidebar.grid_propagate(False)
         
@@ -264,8 +283,57 @@ class ViewerApp(ctk.CTk):
         self.total_delay_label.pack(fill="x", pady=2)
         
         # 狀態 (極簡點)
-        self.status_indicator = ctk.CTkLabel(bottom_frame, text="● Offline", text_color=COLOR_TEXT_DIM, font=("Roboto", 10), anchor="w")
+        self.status_indicator = ctk.CTkLabel(
+            bottom_frame,
+            text="Status: Offline",
+            text_color=COLOR_TEXT_DIM,
+            font=("Roboto", 10),
+            anchor="w",
+            height=18,
+        )
         self.status_indicator.pack(fill="x")
+
+        self.hardware_type_label = ctk.CTkLabel(
+            bottom_frame,
+            text=f"Hardware: {getattr(config, 'mouse_api', 'Serial')}",
+            text_color=COLOR_TEXT_DIM,
+            font=("Roboto", 10),
+            anchor="w",
+        )
+        self.hardware_type_label.pack(fill="x", pady=(4, 0))
+
+        self.hardware_conn_label = ctk.CTkLabel(
+            bottom_frame,
+            text="Hardware Status: 🔴 Disconnected",
+            text_color=COLOR_DANGER,
+            font=("Roboto", 10),
+            anchor="w",
+        )
+        self.hardware_conn_label.pack(fill="x")
+
+        self._hardware_info_expanded = False
+        self.hardware_details_toggle = ctk.CTkButton(
+            bottom_frame,
+            text="Hardware Info ▸",
+            command=self._toggle_hardware_info_details,
+            fg_color="transparent",
+            hover_color=COLOR_SURFACE,
+            text_color=COLOR_TEXT_DIM,
+            font=("Roboto", 9),
+            anchor="w",
+            height=22,
+        )
+        self.hardware_details_toggle.pack(fill="x", pady=(2, 0))
+
+        self.hardware_details_label = ctk.CTkLabel(
+            bottom_frame,
+            text="",
+            text_color=COLOR_TEXT_DIM,
+            font=("Roboto", 9),
+            anchor="w",
+            justify="left",
+        )
+        self._update_hardware_status_ui()
         
         # 設置按鈕
         settings_btn = ctk.CTkButton(
@@ -280,6 +348,15 @@ class ViewerApp(ctk.CTk):
             height=30
         )
         settings_btn.pack(fill="x", pady=(10, 0))
+
+    def _set_status_indicator(self, text, text_color=COLOR_TEXT_DIM):
+        if not hasattr(self, "status_indicator") or not self.status_indicator.winfo_exists():
+            return
+        msg = str(text).replace("\n", " ").strip()
+        max_chars = 30
+        if len(msg) > max_chars:
+            msg = msg[: max_chars - 3] + "..."
+        self.status_indicator.configure(text=msg, text_color=text_color)
 
     def _create_nav_btn(self, parent, text, command):
         return ctk.CTkButton(
@@ -319,6 +396,57 @@ class ViewerApp(ctk.CTk):
     def _show_general_tab(self):
         self._clear_content()
         self._add_title("General")
+
+        # -- HARDWARE API (collapsible) --
+        sec_hardware = self._create_collapsible_section(self.content_frame, "Hardware API", initially_open=True)
+        self.mouse_api_option = self._add_option_row_in_frame(
+            sec_hardware,
+            "Input API",
+            ["Serial", "Arduino", "SendInput", "Net", "MakV2", "DHZ"],
+            self._on_mouse_api_changed,
+        )
+        self.var_auto_connect_mouse_api = tk.BooleanVar(value=bool(getattr(config, "auto_connect_mouse_api", False)))
+        self._add_switch_in_frame(
+            sec_hardware,
+            "Auto Connect Mouse API On Startup",
+            self.var_auto_connect_mouse_api,
+            self._on_auto_connect_mouse_api_changed,
+        )
+        current_mouse_api = getattr(config, "mouse_api", "Serial")
+        current_mouse_api_norm = str(current_mouse_api).strip().lower()
+        if current_mouse_api_norm == "net":
+            current_mouse_api = "Net"
+        elif current_mouse_api_norm == "dhz":
+            current_mouse_api = "DHZ"
+        elif current_mouse_api_norm in ("makv2", "mak_v2", "mak-v2"):
+            current_mouse_api = "MakV2"
+        elif current_mouse_api_norm == "arduino":
+            current_mouse_api = "Arduino"
+        elif current_mouse_api_norm in ("sendinput", "win32", "win32api", "win32_sendinput", "win32-sendinput"):
+            current_mouse_api = "SendInput"
+        else:
+            current_mouse_api = "Serial"
+        self.mouse_api_option.set(current_mouse_api)
+        self.saved_mouse_api = current_mouse_api
+        serial_mode = str(getattr(config, "serial_port_mode", self.saved_serial_port_mode)).strip().lower()
+        self.saved_serial_port_mode = "Manual" if serial_mode == "manual" else "Auto"
+        self.saved_serial_port = str(getattr(config, "serial_port", self.saved_serial_port))
+        self.saved_net_ip = getattr(config, "net_ip", self.saved_net_ip)
+        self.saved_net_port = getattr(config, "net_port", self.saved_net_port)
+        self.saved_net_uuid = getattr(config, "net_uuid", getattr(config, "net_mac", self.saved_net_uuid))
+        self.saved_arduino_port = str(getattr(config, "arduino_port", self.saved_arduino_port))
+        self.saved_arduino_baud = str(getattr(config, "arduino_baud", self.saved_arduino_baud))
+        self.saved_makv2_port = getattr(config, "makv2_port", self.saved_makv2_port)
+        self.saved_makv2_baud = str(getattr(config, "makv2_baud", self.saved_makv2_baud))
+        self.saved_dhz_ip = getattr(config, "dhz_ip", self.saved_dhz_ip)
+        self.saved_dhz_port = str(getattr(config, "dhz_port", self.saved_dhz_port))
+        self.saved_dhz_random = str(getattr(config, "dhz_random", self.saved_dhz_random))
+        self.saved_auto_connect_mouse_api = bool(getattr(config, "auto_connect_mouse_api", self.saved_auto_connect_mouse_api))
+
+        self._add_spacer_in_frame(sec_hardware)
+        self.hardware_content_frame = ctk.CTkFrame(sec_hardware, fg_color="transparent")
+        self.hardware_content_frame.pack(fill="x", pady=5)
+        self._update_mouse_api_ui()
         
         # ── CAPTURE CONTROLS (collapsible) ──
         sec_capture = self._create_collapsible_section(self.content_frame, "Capture Controls", initially_open=True)
@@ -533,6 +661,607 @@ class ViewerApp(ctk.CTk):
             btn_switch.grid(row=row, column=col, sticky="w", padx=5, pady=6)
             self._checkbox_vars[key] = var
 
+    def _update_mouse_api_ui(self):
+        """根據選擇的滑鼠 API 更新 Hardware API 區塊。"""
+        if not hasattr(self, "hardware_content_frame") or not self.hardware_content_frame.winfo_exists():
+            return
+
+        for widget in self.hardware_content_frame.winfo_children():
+            widget.destroy()
+
+        mode = "Serial"
+        if hasattr(self, "mouse_api_option") and self.mouse_api_option.winfo_exists():
+            mode = self.mouse_api_option.get()
+        mode_norm = str(mode).strip().lower()
+        if mode_norm == "net":
+            mode = "Net"
+        elif mode_norm == "dhz":
+            mode = "DHZ"
+        elif mode_norm in ("makv2", "mak_v2", "mak-v2"):
+            mode = "MakV2"
+        elif mode_norm == "arduino":
+            mode = "Arduino"
+        elif mode_norm in ("sendinput", "win32", "win32api", "win32_sendinput", "win32-sendinput"):
+            mode = "SendInput"
+        else:
+            mode = "Serial"
+        self.saved_mouse_api = mode
+        config.mouse_api = mode
+
+        if mode == "Serial":
+            tip = ctk.CTkLabel(
+                self.hardware_content_frame,
+                text="Serial API (MAKCU/CH34x)",
+                font=("Roboto", 10),
+                text_color=COLOR_TEXT_DIM,
+            )
+            tip.pack(anchor="w", pady=(0, 8))
+
+            mode_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            mode_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(mode_frame, text="COM Mode", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.serial_mode_option = self._add_option_menu(
+                ["Auto", "Manual"],
+                self._on_serial_mode_selected,
+                parent=mode_frame,
+            )
+            self.serial_mode_option.pack(side="right")
+            current_serial_mode = "Manual" if str(self.saved_serial_port_mode).strip().lower() == "manual" else "Auto"
+            self.saved_serial_port_mode = current_serial_mode
+            self.serial_mode_option.set(current_serial_mode)
+
+            if current_serial_mode == "Manual":
+                port_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+                port_frame.pack(fill="x", pady=3)
+                ctk.CTkLabel(port_frame, text="COM Port", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+                self.serial_port_entry = ctk.CTkEntry(
+                    port_frame,
+                    fg_color=COLOR_SURFACE,
+                    border_width=0,
+                    text_color=COLOR_TEXT,
+                    width=170,
+                )
+                self.serial_port_entry.pack(side="right")
+                self.serial_port_entry.insert(0, self.saved_serial_port)
+                self.serial_port_entry.bind("<KeyRelease>", self._on_serial_port_changed)
+                self.serial_port_entry.bind("<FocusOut>", self._on_serial_port_changed)
+
+            btn_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            btn_frame.pack(fill="x", pady=5)
+            self._add_text_button(btn_frame, "CONNECT SERIAL", lambda: self._connect_mouse_api("Serial")).pack(side="left")
+            self._add_text_button(btn_frame, "TEST MOVE", self._test_mouse_move).pack(side="left", padx=12)
+            return
+
+        if mode == "Arduino":
+            tip = ctk.CTkLabel(
+                self.hardware_content_frame,
+                text="Arduino API (serial c/p/r/mX,Y newline protocol)",
+                font=("Roboto", 10),
+                text_color=COLOR_TEXT_DIM,
+            )
+            tip.pack(anchor="w", pady=(0, 8))
+
+            port_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            port_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(port_frame, text="COM Port (optional)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.arduino_port_entry = ctk.CTkEntry(
+                port_frame,
+                fg_color=COLOR_SURFACE,
+                border_width=0,
+                text_color=COLOR_TEXT,
+                width=170,
+            )
+            self.arduino_port_entry.pack(side="right")
+            self.arduino_port_entry.insert(0, self.saved_arduino_port)
+            self.arduino_port_entry.bind("<KeyRelease>", self._on_arduino_port_changed)
+            self.arduino_port_entry.bind("<FocusOut>", self._on_arduino_port_changed)
+
+            baud_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            baud_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(baud_frame, text="Baud", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.arduino_baud_entry = ctk.CTkEntry(
+                baud_frame,
+                fg_color=COLOR_SURFACE,
+                border_width=0,
+                text_color=COLOR_TEXT,
+                width=170,
+            )
+            self.arduino_baud_entry.pack(side="right")
+            self.arduino_baud_entry.insert(0, self.saved_arduino_baud)
+            self.arduino_baud_entry.bind("<KeyRelease>", self._on_arduino_baud_changed)
+            self.arduino_baud_entry.bind("<FocusOut>", self._on_arduino_baud_changed)
+
+            btn_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            btn_frame.pack(fill="x", pady=8)
+            self._add_text_button(btn_frame, "CONNECT ARDUINO", lambda: self._connect_mouse_api("Arduino")).pack(side="left")
+            self._add_text_button(btn_frame, "TEST MOVE", self._test_mouse_move).pack(side="left", padx=12)
+            return
+
+        if mode == "SendInput":
+            tip = ctk.CTkLabel(
+                self.hardware_content_frame,
+                text="Win32 SendInput API (software injection, no COM needed)",
+                font=("Roboto", 10),
+                text_color=COLOR_TEXT_DIM,
+            )
+            tip.pack(anchor="w", pady=(0, 8))
+
+            sendinput_notice = ctk.CTkLabel(
+                self.hardware_content_frame,
+                text="For dual-PC streaming setups (e.g., Moonlight).",
+                font=("Roboto", 10, "bold"),
+                text_color=COLOR_DANGER,
+            )
+            sendinput_notice.pack(anchor="w", pady=(0, 8))
+
+            btn_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            btn_frame.pack(fill="x", pady=8)
+            self._add_text_button(btn_frame, "ENABLE SENDINPUT", lambda: self._connect_mouse_api("SendInput")).pack(side="left")
+            self._add_text_button(btn_frame, "TEST MOVE", self._test_mouse_move).pack(side="left", padx=12)
+            return
+
+        if mode == "MakV2":
+            tip = ctk.CTkLabel(
+                self.hardware_content_frame,
+                text="MakV2 API (ASCII km.* commands over serial)",
+                font=("Roboto", 10),
+                text_color=COLOR_TEXT_DIM,
+            )
+            tip.pack(anchor="w", pady=(0, 8))
+
+            port_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            port_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(port_frame, text="Port (optional)", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.makv2_port_entry = ctk.CTkEntry(port_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+            self.makv2_port_entry.pack(side="right")
+            self.makv2_port_entry.insert(0, self.saved_makv2_port)
+            self.makv2_port_entry.bind("<KeyRelease>", self._on_makv2_port_changed)
+            self.makv2_port_entry.bind("<FocusOut>", self._on_makv2_port_changed)
+
+            baud_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            baud_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(baud_frame, text="Baud", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.makv2_baud_entry = ctk.CTkEntry(baud_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+            self.makv2_baud_entry.pack(side="right")
+            self.makv2_baud_entry.insert(0, self.saved_makv2_baud)
+            self.makv2_baud_entry.bind("<KeyRelease>", self._on_makv2_baud_changed)
+            self.makv2_baud_entry.bind("<FocusOut>", self._on_makv2_baud_changed)
+
+            btn_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            btn_frame.pack(fill="x", pady=8)
+            self._add_text_button(btn_frame, "CONNECT MAKV2", lambda: self._connect_mouse_api("MakV2")).pack(side="left")
+            self._add_text_button(btn_frame, "TEST MOVE", self._test_mouse_move).pack(side="left", padx=12)
+            return
+
+        if mode == "DHZ":
+            tip = ctk.CTkLabel(
+                self.hardware_content_frame,
+                text="DHZ API (UDP + Caesar-shift command protocol)",
+                font=("Roboto", 10),
+                text_color=COLOR_TEXT_DIM,
+            )
+            tip.pack(anchor="w", pady=(0, 8))
+
+            ip_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            ip_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(ip_frame, text="IP Address", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.dhz_ip_entry = ctk.CTkEntry(ip_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+            self.dhz_ip_entry.pack(side="right")
+            self.dhz_ip_entry.insert(0, self.saved_dhz_ip)
+            self.dhz_ip_entry.bind("<KeyRelease>", self._on_dhz_ip_changed)
+            self.dhz_ip_entry.bind("<FocusOut>", self._on_dhz_ip_changed)
+
+            port_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            port_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(port_frame, text="Port", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.dhz_port_entry = ctk.CTkEntry(port_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+            self.dhz_port_entry.pack(side="right")
+            self.dhz_port_entry.insert(0, self.saved_dhz_port)
+            self.dhz_port_entry.bind("<KeyRelease>", self._on_dhz_port_changed)
+            self.dhz_port_entry.bind("<FocusOut>", self._on_dhz_port_changed)
+
+            random_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            random_frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(random_frame, text="Random Shift", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+            self.dhz_random_entry = ctk.CTkEntry(random_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+            self.dhz_random_entry.pack(side="right")
+            self.dhz_random_entry.insert(0, self.saved_dhz_random)
+            self.dhz_random_entry.bind("<KeyRelease>", self._on_dhz_random_changed)
+            self.dhz_random_entry.bind("<FocusOut>", self._on_dhz_random_changed)
+
+            btn_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+            btn_frame.pack(fill="x", pady=8)
+            self._add_text_button(btn_frame, "CONNECT DHZ", lambda: self._connect_mouse_api("DHZ")).pack(side="left")
+            self._add_text_button(btn_frame, "TEST MOVE", self._test_mouse_move).pack(side="left", padx=12)
+            return
+
+        # Net API controls
+        dll_name = "kmNet.pyd"
+        try:
+            from src.utils.mouse import get_expected_kmnet_dll_name
+
+            dll_name = get_expected_kmnet_dll_name()
+        except Exception:
+            pass
+
+        tip = ctk.CTkLabel(
+            self.hardware_content_frame,
+            text=f"Net API auto DLL by Python version: {dll_name}",
+            font=("Roboto", 10),
+            text_color=COLOR_TEXT_DIM,
+        )
+        tip.pack(anchor="w", pady=(0, 8))
+
+        ip_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+        ip_frame.pack(fill="x", pady=3)
+        ctk.CTkLabel(ip_frame, text="IP Address", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+        self.net_ip_entry = ctk.CTkEntry(ip_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+        self.net_ip_entry.pack(side="right")
+        self.net_ip_entry.insert(0, self.saved_net_ip)
+        self.net_ip_entry.bind("<KeyRelease>", self._on_net_ip_changed)
+        self.net_ip_entry.bind("<FocusOut>", self._on_net_ip_changed)
+
+        port_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+        port_frame.pack(fill="x", pady=3)
+        ctk.CTkLabel(port_frame, text="Port", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+        self.net_port_entry = ctk.CTkEntry(port_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+        self.net_port_entry.pack(side="right")
+        self.net_port_entry.insert(0, self.saved_net_port)
+        self.net_port_entry.bind("<KeyRelease>", self._on_net_port_changed)
+        self.net_port_entry.bind("<FocusOut>", self._on_net_port_changed)
+
+        uuid_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+        uuid_frame.pack(fill="x", pady=3)
+        ctk.CTkLabel(uuid_frame, text="UUID", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+        self.net_uuid_entry = ctk.CTkEntry(uuid_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=170)
+        self.net_uuid_entry.pack(side="right")
+        self.net_uuid_entry.insert(0, self.saved_net_uuid)
+        self.net_uuid_entry.bind("<KeyRelease>", self._on_net_uuid_changed)
+        self.net_uuid_entry.bind("<FocusOut>", self._on_net_uuid_changed)
+
+        btn_frame = ctk.CTkFrame(self.hardware_content_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=8)
+        self._add_text_button(btn_frame, "CONNECT NET", lambda: self._connect_mouse_api("Net")).pack(side="left")
+        self._add_text_button(btn_frame, "TEST MOVE", self._test_mouse_move).pack(side="left", padx=12)
+
+    def _on_mouse_api_changed(self, val):
+        mode_norm = str(val).strip().lower()
+        if mode_norm == "net":
+            self.saved_mouse_api = "Net"
+        elif mode_norm == "dhz":
+            self.saved_mouse_api = "DHZ"
+        elif mode_norm in ("makv2", "mak_v2", "mak-v2"):
+            self.saved_mouse_api = "MakV2"
+        elif mode_norm == "arduino":
+            self.saved_mouse_api = "Arduino"
+        elif mode_norm in ("sendinput", "win32", "win32api", "win32_sendinput", "win32-sendinput"):
+            self.saved_mouse_api = "SendInput"
+        else:
+            self.saved_mouse_api = "Serial"
+        config.mouse_api = self.saved_mouse_api
+        self.saved_auto_connect_mouse_api = bool(getattr(config, "auto_connect_mouse_api", self.saved_auto_connect_mouse_api))
+        # Cancel any in-flight connect request to avoid stale success callback after mode switch.
+        self._mouse_api_connect_job_id += 1
+        self._mouse_api_connecting = False
+        # Switching mode must drop current hardware connection state.
+        try:
+            from src.utils import mouse as mouse_backend
+
+            mouse_backend.disconnect_all(selected_mode=self.saved_mouse_api)
+        except Exception:
+            pass
+        self._update_mouse_api_ui()
+        self._set_status_indicator(f"Status: Mouse API {self.saved_mouse_api} selected", COLOR_TEXT_DIM)
+        self._update_hardware_status_ui()
+
+    def _on_auto_connect_mouse_api_changed(self):
+        val = bool(self.var_auto_connect_mouse_api.get())
+        self.saved_auto_connect_mouse_api = val
+        config.auto_connect_mouse_api = val
+        try:
+            config.save_to_file()
+        except Exception:
+            pass
+
+    def _on_serial_mode_selected(self, val):
+        mode_norm = str(val).strip().lower()
+        self.saved_serial_port_mode = "Manual" if mode_norm == "manual" else "Auto"
+        config.serial_port_mode = self.saved_serial_port_mode
+        self._update_mouse_api_ui()
+
+    def _on_serial_port_changed(self, event=None):
+        if hasattr(self, "serial_port_entry") and self.serial_port_entry.winfo_exists():
+            val = self.serial_port_entry.get().strip()
+            self.saved_serial_port = val
+            config.serial_port = val
+
+    def _on_arduino_port_changed(self, event=None):
+        if hasattr(self, "arduino_port_entry") and self.arduino_port_entry.winfo_exists():
+            val = self.arduino_port_entry.get().strip()
+            self.saved_arduino_port = val
+            config.arduino_port = val
+
+    def _on_arduino_baud_changed(self, event=None):
+        if hasattr(self, "arduino_baud_entry") and self.arduino_baud_entry.winfo_exists():
+            val = self.arduino_baud_entry.get().strip()
+            self.saved_arduino_baud = val
+            try:
+                config.arduino_baud = int(val)
+            except ValueError:
+                config.arduino_baud = 115200
+
+    def _on_net_ip_changed(self, event=None):
+        if hasattr(self, "net_ip_entry") and self.net_ip_entry.winfo_exists():
+            val = self.net_ip_entry.get().strip()
+            self.saved_net_ip = val
+            config.net_ip = val
+
+    def _on_net_port_changed(self, event=None):
+        if hasattr(self, "net_port_entry") and self.net_port_entry.winfo_exists():
+            val = self.net_port_entry.get().strip()
+            self.saved_net_port = val
+            config.net_port = val
+
+    def _on_net_uuid_changed(self, event=None):
+        if hasattr(self, "net_uuid_entry") and self.net_uuid_entry.winfo_exists():
+            val = self.net_uuid_entry.get().strip()
+            self.saved_net_uuid = val
+            config.net_uuid = val
+            config.net_mac = val
+
+    def _on_makv2_port_changed(self, event=None):
+        if hasattr(self, "makv2_port_entry") and self.makv2_port_entry.winfo_exists():
+            val = self.makv2_port_entry.get().strip()
+            self.saved_makv2_port = val
+            config.makv2_port = val
+
+    def _on_makv2_baud_changed(self, event=None):
+        if hasattr(self, "makv2_baud_entry") and self.makv2_baud_entry.winfo_exists():
+            val = self.makv2_baud_entry.get().strip()
+            self.saved_makv2_baud = val
+            try:
+                config.makv2_baud = int(val)
+            except ValueError:
+                pass
+
+    def _on_dhz_ip_changed(self, event=None):
+        if hasattr(self, "dhz_ip_entry") and self.dhz_ip_entry.winfo_exists():
+            val = self.dhz_ip_entry.get().strip()
+            self.saved_dhz_ip = val
+            config.dhz_ip = val
+
+    def _on_dhz_port_changed(self, event=None):
+        if hasattr(self, "dhz_port_entry") and self.dhz_port_entry.winfo_exists():
+            val = self.dhz_port_entry.get().strip()
+            self.saved_dhz_port = val
+            config.dhz_port = val
+
+    def _on_dhz_random_changed(self, event=None):
+        if hasattr(self, "dhz_random_entry") and self.dhz_random_entry.winfo_exists():
+            val = self.dhz_random_entry.get().strip()
+            self.saved_dhz_random = val
+            try:
+                config.dhz_random = int(val)
+            except ValueError:
+                pass
+
+    def _test_mouse_move(self):
+        try:
+            from src.utils import mouse as mouse_backend
+
+            if not getattr(mouse_backend, "is_connected", False):
+                self._set_status_indicator("Status: Mouse API not connected", COLOR_DANGER)
+                return
+
+            mouse_backend.test_move()
+            backend = mouse_backend.get_active_backend()
+            self._set_status_indicator(f"Status: Test move sent via {backend}", COLOR_TEXT)
+        except Exception as e:
+            self._set_status_indicator(f"Status: Mouse API test error: {e}", COLOR_DANGER)
+
+    def _connect_mouse_api(self, target_mode=None):
+        if getattr(self, "_mouse_api_connecting", False):
+            self._set_status_indicator("Status: HW connecting...", COLOR_TEXT_DIM)
+            return
+
+        mode = target_mode or getattr(config, "mouse_api", "Serial")
+        mode_norm = str(mode).strip().lower()
+        if mode_norm == "net":
+            mode = "Net"
+        elif mode_norm == "dhz":
+            mode = "DHZ"
+        elif mode_norm in ("makv2", "mak_v2", "mak-v2"):
+            mode = "MakV2"
+        elif mode_norm == "arduino":
+            mode = "Arduino"
+        elif mode_norm in ("sendinput", "win32", "win32api", "win32_sendinput", "win32-sendinput"):
+            mode = "SendInput"
+        else:
+            mode = "Serial"
+        payload = {"mode": mode}
+
+        if mode == "Serial":
+            selected_serial_mode = "Manual" if str(self.saved_serial_port_mode).strip().lower() == "manual" else "Auto"
+            self.saved_serial_port_mode = selected_serial_mode
+            if selected_serial_mode == "Manual":
+                if hasattr(self, "serial_port_entry") and self.serial_port_entry.winfo_exists():
+                    self.saved_serial_port = self.serial_port_entry.get().strip()
+            config.serial_port_mode = selected_serial_mode
+            config.serial_port = self.saved_serial_port
+            payload.update(
+                {
+                    "serial_port_mode": selected_serial_mode,
+                    "serial_port": self.saved_serial_port,
+                }
+            )
+
+        elif mode == "Arduino":
+            if hasattr(self, "arduino_port_entry") and self.arduino_port_entry.winfo_exists():
+                self.saved_arduino_port = self.arduino_port_entry.get().strip()
+            if hasattr(self, "arduino_baud_entry") and self.arduino_baud_entry.winfo_exists():
+                self.saved_arduino_baud = self.arduino_baud_entry.get().strip()
+
+            config.arduino_port = self.saved_arduino_port
+            try:
+                config.arduino_baud = int(self.saved_arduino_baud)
+            except ValueError:
+                config.arduino_baud = 115200
+            payload.update(
+                {
+                    "arduino_port": self.saved_arduino_port,
+                    "arduino_baud": config.arduino_baud,
+                }
+            )
+
+        elif mode == "Net":
+            if hasattr(self, "net_ip_entry") and self.net_ip_entry.winfo_exists():
+                self.saved_net_ip = self.net_ip_entry.get().strip()
+            if hasattr(self, "net_port_entry") and self.net_port_entry.winfo_exists():
+                self.saved_net_port = self.net_port_entry.get().strip()
+            if hasattr(self, "net_uuid_entry") and self.net_uuid_entry.winfo_exists():
+                self.saved_net_uuid = self.net_uuid_entry.get().strip()
+
+            config.net_ip = self.saved_net_ip
+            config.net_port = self.saved_net_port
+            config.net_uuid = self.saved_net_uuid
+            config.net_mac = self.saved_net_uuid
+            payload.update({
+                "ip": self.saved_net_ip,
+                "port": self.saved_net_port,
+                "uuid": self.saved_net_uuid,
+            })
+
+        elif mode == "MakV2":
+            if hasattr(self, "makv2_port_entry") and self.makv2_port_entry.winfo_exists():
+                self.saved_makv2_port = self.makv2_port_entry.get().strip()
+            if hasattr(self, "makv2_baud_entry") and self.makv2_baud_entry.winfo_exists():
+                self.saved_makv2_baud = self.makv2_baud_entry.get().strip()
+
+            config.makv2_port = self.saved_makv2_port
+            try:
+                config.makv2_baud = int(self.saved_makv2_baud)
+            except ValueError:
+                config.makv2_baud = 4000000
+            payload.update({
+                "makv2_port": self.saved_makv2_port,
+                "makv2_baud": config.makv2_baud,
+            })
+        elif mode == "DHZ":
+            if hasattr(self, "dhz_ip_entry") and self.dhz_ip_entry.winfo_exists():
+                self.saved_dhz_ip = self.dhz_ip_entry.get().strip()
+            if hasattr(self, "dhz_port_entry") and self.dhz_port_entry.winfo_exists():
+                self.saved_dhz_port = self.dhz_port_entry.get().strip()
+            if hasattr(self, "dhz_random_entry") and self.dhz_random_entry.winfo_exists():
+                self.saved_dhz_random = self.dhz_random_entry.get().strip()
+
+            config.dhz_ip = self.saved_dhz_ip
+            config.dhz_port = self.saved_dhz_port
+            try:
+                config.dhz_random = int(self.saved_dhz_random)
+            except ValueError:
+                config.dhz_random = 0
+            payload.update({
+                "dhz_ip": self.saved_dhz_ip,
+                "dhz_port": self.saved_dhz_port,
+                "dhz_random": config.dhz_random,
+            })
+        elif mode == "SendInput":
+            pass
+
+        self._mouse_api_connecting = True
+        self._mouse_api_connect_job_id += 1
+        job_id = self._mouse_api_connect_job_id
+        self._set_status_indicator(f"Status: HW {mode} connecting", COLOR_TEXT_DIM)
+
+        threading.Thread(
+            target=self._connect_mouse_api_worker,
+            args=(job_id, payload),
+            daemon=True,
+        ).start()
+        self.after(
+            self._mouse_api_connect_timeout_ms,
+            lambda: self._check_mouse_api_connect_timeout(job_id, mode),
+        )
+
+    def _connect_mouse_api_worker(self, job_id, payload):
+        mode = payload.get("mode", "Serial")
+        success, error = False, "unknown error"
+        try:
+            from src.utils.mouse import switch_backend
+
+            if mode == "Net":
+                success, error = switch_backend(
+                    "Net",
+                    ip=payload.get("ip", ""),
+                    port=payload.get("port", ""),
+                    uuid=payload.get("uuid", ""),
+                )
+            elif mode == "Arduino":
+                success, error = switch_backend(
+                    "Arduino",
+                    arduino_port=payload.get("arduino_port", ""),
+                    arduino_baud=payload.get("arduino_baud", 115200),
+                )
+            elif mode == "SendInput":
+                success, error = switch_backend("SendInput")
+            elif mode == "MakV2":
+                success, error = switch_backend(
+                    "MakV2",
+                    makv2_port=payload.get("makv2_port", ""),
+                    makv2_baud=payload.get("makv2_baud", 4000000),
+                )
+            elif mode == "DHZ":
+                success, error = switch_backend(
+                    "DHZ",
+                    dhz_ip=payload.get("dhz_ip", ""),
+                    dhz_port=payload.get("dhz_port", ""),
+                    dhz_random=payload.get("dhz_random", 0),
+                )
+            else:
+                success, error = switch_backend(
+                    "Serial",
+                    serial_port_mode=payload.get("serial_port_mode", "Auto"),
+                    serial_port=payload.get("serial_port", ""),
+                )
+        except Exception as e:
+            success, error = False, str(e)
+
+        self.after(0, lambda: self._on_mouse_api_connect_done(job_id, mode, payload, success, error))
+
+    def _on_mouse_api_connect_done(self, job_id, mode, payload, success, error):
+        # Ignore stale callback results.
+        if job_id != getattr(self, "_mouse_api_connect_job_id", 0):
+            return
+
+        self._mouse_api_connecting = False
+        if success:
+            if mode == "Net":
+                self._set_status_indicator("Status: Mouse API connected (Net)", COLOR_TEXT)
+            elif mode == "Arduino":
+                self._set_status_indicator("Status: Mouse API connected (Arduino)", COLOR_TEXT)
+            elif mode == "SendInput":
+                self._set_status_indicator("Status: Mouse API connected (SendInput)", COLOR_TEXT)
+            elif mode == "MakV2":
+                self._set_status_indicator("Status: Mouse API connected (MakV2)", COLOR_TEXT)
+            elif mode == "DHZ":
+                self._set_status_indicator("Status: Mouse API connected (DHZ)", COLOR_TEXT)
+            else:
+                self._set_status_indicator("Status: Mouse API connected (Serial)", COLOR_TEXT)
+            return
+
+        self._set_status_indicator(f"Status: Mouse API error: {error}", COLOR_DANGER)
+
+    def _check_mouse_api_connect_timeout(self, job_id, mode):
+        if not getattr(self, "_mouse_api_connecting", False):
+            return
+        if job_id != getattr(self, "_mouse_api_connect_job_id", 0):
+            return
+
+        # Invalidate current job, ignore late callback from blocked worker.
+        self._mouse_api_connect_job_id += 1
+        self._mouse_api_connecting = False
+        self._set_status_indicator(f"Status: Mouse API timeout ({mode})", COLOR_DANGER)
+
     def _update_capture_ui(self):
         """根據選擇的捕獲方法更新 UI"""
         # 保存當前 UDP 輸入框的值（如果存在）
@@ -550,6 +1279,21 @@ class ViewerApp(ctk.CTk):
         # 清除舊的 UI 元素
         for widget in self.capture_content_frame.winfo_children():
             widget.destroy()
+        
+        # Add FPS Limit control at the top (applies to all capture methods)
+        self._add_subtitle_in_frame(self.capture_content_frame, "PROCESSING FPS LIMIT")
+        
+        fps_limit_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
+        fps_limit_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(fps_limit_frame, text="Target FPS", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
+        self.fps_limit_entry = ctk.CTkEntry(fps_limit_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=150)
+        self.fps_limit_entry.pack(side="right")
+        target_fps = str(getattr(config, "target_fps", 80))
+        self.fps_limit_entry.insert(0, target_fps)
+        self.fps_limit_entry.bind("<KeyRelease>", self._on_fps_limit_changed)
+        self.fps_limit_entry.bind("<FocusOut>", self._on_fps_limit_changed)
+        
+        self._add_spacer_in_frame(self.capture_content_frame)
             
         method = self.capture_method_var.get()
         
@@ -812,6 +1556,12 @@ class ViewerApp(ctk.CTk):
         elif method == "MSS":
             # MSS Screen Capture Controls
             self._add_subtitle_in_frame(self.capture_content_frame, "MSS SCREEN CAPTURE")
+            ctk.CTkLabel(
+                self.capture_content_frame,
+                text="For dual-PC streaming users (e.g., Moonlight), pair MSS with SendInput.",
+                font=("Roboto", 10, "bold"),
+                text_color=COLOR_DANGER,
+            ).pack(anchor="w", pady=(0, 8))
             
             # Monitor Index
             monitor_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
@@ -960,6 +1710,27 @@ class ViewerApp(ctk.CTk):
                 config.capture_fps = val
             except ValueError:
                 pass
+    
+    def _on_fps_limit_changed(self, event=None):
+        """Handle FPS limit change"""
+        try:
+            if not hasattr(self, 'fps_limit_entry'):
+                return
+            fps = float(self.fps_limit_entry.get())
+            if fps < 1 or fps > 1000:
+                fps = 80
+                self.fps_limit_entry.delete(0, "end")
+                self.fps_limit_entry.insert(0, "80")
+            config.target_fps = fps
+            config.save_to_file()
+            # Update tracker's target FPS dynamically
+            if hasattr(self, 'tracker') and self.tracker:
+                if hasattr(self.tracker, 'set_target_fps'):
+                    self.tracker.set_target_fps(fps)
+                else:
+                    self.tracker._target_fps = float(fps)
+        except ValueError:
+            pass
     
     def _on_capture_card_range_keyrelease(self, event=None):
         """在輸入過程中更新中心點顯示（不強制修改輸入框）"""
@@ -2410,6 +3181,13 @@ class ViewerApp(ctk.CTk):
             self.tracker.mode = config.mode
             self.tracker.mode_sec = getattr(config, "mode_sec", "Normal")
             
+            # Update target FPS
+            target_fps = getattr(config, "target_fps", 80)
+            if hasattr(self.tracker, 'set_target_fps'):
+                self.tracker.set_target_fps(target_fps)
+            else:
+                self.tracker._target_fps = float(target_fps)
+            
             # Sec Aimbot
             self.tracker.normal_x_speed_sec = config.normal_x_speed_sec
             self.tracker.normal_y_speed_sec = config.normal_y_speed_sec
@@ -2545,7 +3323,7 @@ class ViewerApp(ctk.CTk):
         self.capture.set_mode(val)
         config.capture_mode = val  # 保存到 config
         self._update_capture_ui()
-        self.status_indicator.configure(text=f"● Mode: {val}", text_color=COLOR_TEXT)
+        self._set_status_indicator(f"Status: Mode {val}", COLOR_TEXT)
 
     def _process_source_updates(self):
         if self.capture.mode == "NDI":
@@ -2558,7 +3336,7 @@ class ViewerApp(ctk.CTk):
         if self.capture.mode == "NDI":
             names = self.capture.ndi.refresh_sources()
             self._apply_sources_to_ui(names)
-            self.status_indicator.configure(text="● Refreshing...", text_color=COLOR_TEXT)
+            self._set_status_indicator("Status: Refreshing NDI", COLOR_TEXT)
 
     def _update_ndi_fov_slider_max(self, width, height):
         """更新 NDI FOV 滑條的最大值（正方形裁切，使用較小的尺寸）"""
@@ -2608,11 +3386,11 @@ class ViewerApp(ctk.CTk):
             
             success, error = self.capture.connect_ndi(selected)
             if success:
-                self.status_indicator.configure(text=f"● Connected: {selected}", text_color=COLOR_TEXT)
+                self._set_status_indicator("Status: NDI connected", COLOR_TEXT)
                 # 連接成功後，嘗試獲取畫面尺寸並更新滑條最大值
                 self.after(500, self._update_ndi_fov_sliders_after_connect)  # 延遲一點以確保畫面已準備好
             else:
-                self.status_indicator.configure(text=f"● Error: {error}", text_color=COLOR_DANGER)
+                self._set_status_indicator(f"Status: NDI error: {error}", COLOR_DANGER)
     
     def _update_ndi_fov_sliders_after_connect(self):
         """連接成功後更新 NDI FOV 滑條的最大值"""
@@ -2645,11 +3423,11 @@ class ViewerApp(ctk.CTk):
             
             success, error = self.capture.connect_udp(ip, port)
             if success:
-                self.status_indicator.configure(text=f"● Connected: UDP {ip}:{port}", text_color=COLOR_TEXT)
+                self._set_status_indicator("Status: UDP connected", COLOR_TEXT)
                 # 連接成功後，嘗試獲取畫面尺寸並更新滑條最大值
                 self.after(500, self._update_udp_fov_sliders_after_connect)  # 延遲一點以確保畫面已準備好
             else:
-                self.status_indicator.configure(text=f"● Connection failed: {error}", text_color=COLOR_DANGER)
+                self._set_status_indicator(f"Status: UDP connect failed: {error}", COLOR_DANGER)
                 print(f"[UI] UDP connection failed: {error}")
     
     def _update_udp_fov_sliders_after_connect(self):
@@ -2702,9 +3480,9 @@ class ViewerApp(ctk.CTk):
             
             success, error = self.capture.connect_capture_card(config)
             if success:
-                self.status_indicator.configure(text="● Connected: CaptureCard", text_color=COLOR_TEXT)
+                self._set_status_indicator("Status: CaptureCard connected", COLOR_TEXT)
             else:
-                self.status_indicator.configure(text=f"● Connection failed: {error}", text_color=COLOR_DANGER)
+                self._set_status_indicator(f"Status: CaptureCard connect failed: {error}", COLOR_DANGER)
                 print(f"[UI] CaptureCard connection failed: {error}")
 
     # --- MSS Callbacks ---
@@ -2802,15 +3580,9 @@ class ViewerApp(ctk.CTk):
             
             success, error = self.capture.connect_mss(monitor_index, fov_x, fov_y)
             if success:
-                self.status_indicator.configure(
-                    text=f"● Connected: MSS (Monitor {monitor_index})",
-                    text_color=COLOR_TEXT
-                )
+                self._set_status_indicator(f"Status: MSS connected (Monitor {monitor_index})", COLOR_TEXT)
             else:
-                self.status_indicator.configure(
-                    text=f"● Connection failed: {error}",
-                    text_color=COLOR_DANGER
-                )
+                self._set_status_indicator(f"Status: MSS connect failed: {error}", COLOR_DANGER)
                 print(f"[UI] MSS connection failed: {error}")
     
     # --- NDI FOV Callbacks ---
@@ -2887,14 +3659,174 @@ class ViewerApp(ctk.CTk):
                 text=f"Crop area: {total_size} x {total_size} px (square, centered on frame)"
             )
 
+    def _normalize_mouse_api_name(self, mode):
+        mode_norm = str(mode).strip().lower()
+        if mode_norm == "net":
+            return "Net"
+        if mode_norm == "dhz":
+            return "DHZ"
+        if mode_norm in ("makv2", "mak_v2", "mak-v2"):
+            return "MakV2"
+        if mode_norm == "arduino":
+            return "Arduino"
+        if mode_norm in ("sendinput", "win32", "win32api", "win32_sendinput", "win32-sendinput"):
+            return "SendInput"
+        return "Serial"
+
+    def _toggle_hardware_info_details(self):
+        self._hardware_info_expanded = not bool(getattr(self, "_hardware_info_expanded", False))
+
+        if hasattr(self, "hardware_details_toggle") and self.hardware_details_toggle.winfo_exists():
+            self.hardware_details_toggle.configure(
+                text="Hardware Info ▾" if self._hardware_info_expanded else "Hardware Info ▸"
+            )
+
+        if hasattr(self, "hardware_details_label") and self.hardware_details_label.winfo_exists():
+            if self._hardware_info_expanded:
+                self.hardware_details_label.pack(fill="x", pady=(2, 0))
+                self._update_hardware_status_ui()
+            else:
+                self.hardware_details_label.pack_forget()
+
+    def _build_hardware_details_text(self, mode: str, connected: bool) -> str:
+        auto_connect = bool(getattr(config, "auto_connect_mouse_api", False))
+        details = [
+            f"Backend: {mode}",
+            f"Connected: {'Yes' if connected else 'No'}",
+            f"Auto Connect On Startup: {'Yes' if auto_connect else 'No'}",
+        ]
+
+        mouse_backend = None
+        mouse_state = None
+        net_api_module = None
+        try:
+            from src.utils import mouse as mouse_backend
+            from src.utils.mouse import NetAPI as net_api_module
+            from src.utils.mouse import state as mouse_state
+        except Exception:
+            pass
+
+        if mode == "Net":
+            ip = str(getattr(config, "net_ip", ""))
+            port = str(getattr(config, "net_port", ""))
+            uuid = str(getattr(config, "net_uuid", getattr(config, "net_mac", "")))
+            details.append(f"IP/Port: {ip}:{port}")
+            details.append(f"UUID: {uuid or '(empty)'}")
+            try:
+                if mouse_backend is not None:
+                    details.append(f"DLL: {mouse_backend.get_expected_kmnet_dll_name()}")
+                loaded_path = getattr(net_api_module, "_loaded_module_path", "")
+                if loaded_path:
+                    details.append(f"Loaded: {os.path.basename(loaded_path)}")
+            except Exception:
+                pass
+        elif mode == "DHZ":
+            ip = str(getattr(config, "dhz_ip", ""))
+            port = str(getattr(config, "dhz_port", ""))
+            random_shift = str(getattr(config, "dhz_random", 0))
+            details.append(f"IP/Port: {ip}:{port}")
+            details.append(f"Random Shift: {random_shift}")
+            try:
+                dhz_client = getattr(mouse_state, "dhz_client", None)
+                if dhz_client is not None and hasattr(dhz_client, "addr"):
+                    details.append(f"Active Target: {dhz_client.addr[0]}:{dhz_client.addr[1]}")
+            except Exception:
+                pass
+        elif mode == "MakV2":
+            cfg_port = str(getattr(config, "makv2_port", "") or "auto")
+            cfg_baud = str(getattr(config, "makv2_baud", 4000000))
+            details.append(f"Port: {cfg_port}")
+            details.append(f"Baud: {cfg_baud}")
+            try:
+                serial_dev = getattr(mouse_state, "makcu", None)
+                if serial_dev is not None:
+                    details.append(f"Active Port: {getattr(serial_dev, 'port', cfg_port)}")
+                    details.append(f"Active Baud: {getattr(serial_dev, 'baudrate', cfg_baud)}")
+            except Exception:
+                pass
+        elif mode == "Arduino":
+            cfg_port = str(getattr(config, "arduino_port", "") or "auto")
+            cfg_baud = str(getattr(config, "arduino_baud", 115200))
+            details.append(f"Port: {cfg_port}")
+            details.append(f"Baud: {cfg_baud}")
+            details.append(f"16-bit Move: {'Yes' if bool(getattr(config, 'arduino_16_bit_mouse', True)) else 'No'}")
+            try:
+                serial_dev = getattr(mouse_state, "makcu", None)
+                if serial_dev is not None:
+                    details.append(f"Active Port: {getattr(serial_dev, 'port', cfg_port)}")
+                    details.append(f"Active Baud: {getattr(serial_dev, 'baudrate', cfg_baud)}")
+            except Exception:
+                pass
+        elif mode == "SendInput":
+            details.append("Injection: Win32 SendInput")
+            details.append("Transport: Local OS API")
+        else:
+            serial_mode = str(getattr(config, "serial_port_mode", "Auto")).strip().lower()
+            serial_mode_label = "Manual" if serial_mode == "manual" else "Auto"
+            configured_port = str(getattr(config, "serial_port", "")).strip()
+            details.append(f"COM Mode: {serial_mode_label}")
+            if serial_mode_label == "Manual":
+                details.append(f"Configured Port: {configured_port or '(empty)'}")
+            else:
+                details.append("Configured Port: auto-detect")
+            try:
+                serial_dev = getattr(mouse_state, "makcu", None)
+                if serial_dev is not None:
+                    details.append(f"Active Port: {getattr(serial_dev, 'port', 'unknown')}")
+                    details.append(f"Active Baud: {getattr(serial_dev, 'baudrate', 'unknown')}")
+            except Exception:
+                pass
+
+        try:
+            if mouse_backend is not None:
+                last_error = str(mouse_backend.get_last_connect_error() or "").strip()
+                if last_error and not connected:
+                    details.append(f"Last Error: {last_error}")
+        except Exception:
+            pass
+
+        return "\n".join(details)
+
+    def _update_hardware_status_ui(self):
+        mode = self._normalize_mouse_api_name(getattr(config, "mouse_api", "Serial"))
+        connected = False
+
+        try:
+            from src.utils import mouse as mouse_backend
+
+            connected = bool(getattr(mouse_backend, "is_connected", False))
+            if connected:
+                active_mode = self._normalize_mouse_api_name(mouse_backend.get_active_backend())
+                if active_mode:
+                    mode = active_mode
+        except Exception:
+            connected = False
+
+        if hasattr(self, "hardware_type_label") and self.hardware_type_label.winfo_exists():
+            self.hardware_type_label.configure(text=f"Hardware: {mode}")
+
+        if hasattr(self, "hardware_conn_label") and self.hardware_conn_label.winfo_exists():
+            if connected:
+                self.hardware_conn_label.configure(text="Hardware Status: 🟢 Connected", text_color=COLOR_SUCCESS)
+            else:
+                self.hardware_conn_label.configure(text="Hardware Status: 🔴 Disconnected", text_color=COLOR_DANGER)
+
+        if (
+            getattr(self, "_hardware_info_expanded", False)
+            and hasattr(self, "hardware_details_label")
+            and self.hardware_details_label.winfo_exists()
+        ):
+            self.hardware_details_label.configure(text=self._build_hardware_details_text(mode, connected))
+
     def _update_connection_status_loop(self):
         is_conn = self.capture.is_connected()
         current_mode = self.capture.mode
         
         if is_conn:
-            self.status_indicator.configure(text=f"● Online ({current_mode})", text_color=COLOR_TEXT)
+            self._set_status_indicator(f"Status: Online ({current_mode})", COLOR_TEXT)
         else:
-            self.status_indicator.configure(text="● Offline", text_color=COLOR_TEXT_DIM)
+            self._set_status_indicator("Status: Offline", COLOR_TEXT_DIM)
+        self._update_hardware_status_ui()
         self.after(500, self._update_connection_status_loop)
 
     def _update_performance_stats(self):
