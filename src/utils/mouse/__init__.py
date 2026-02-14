@@ -1,7 +1,7 @@
 
 from src.utils.debug_logger import log_click, log_press, log_release, log_print
 
-from . import ArduinoAPI, DHZAPI, MakV2, NetAPI, SendInputAPI, SerialAPI, state
+from . import ArduinoAPI, DHZAPI, MakV2, MakV2Binary, NetAPI, SendInputAPI, SerialAPI, state
 
 is_connected = False
 
@@ -17,6 +17,8 @@ def _normalize_api_name(mode: str) -> str:
         return "Net"
     if mode_norm == "dhz":
         return "DHZ"
+    if mode_norm in ("makv2binary", "makv2_binary", "makv2-binary", "binary"):
+        return "MakV2Binary"
     if mode_norm in ("makv2", "mak_v2", "mak-v2"):
         return "MakV2"
     if mode_norm == "arduino":
@@ -86,6 +88,21 @@ def _get_makv2_settings(port=None, baud=None):
     return selected_port, selected_baud
 
 
+def _get_makv2binary_settings(port=None, baud=None):
+    cfg_port, cfg_baud = "", 4_000_000
+    try:
+        from src.utils.config import config
+
+        cfg_port = str(getattr(config, "makv2binary_port", getattr(config, "makv2_port", cfg_port)))
+        cfg_baud = int(getattr(config, "makv2binary_baud", getattr(config, "makv2_baud", cfg_baud)))
+    except Exception:
+        pass
+
+    selected_port = str(port if port is not None else cfg_port).strip()
+    selected_baud = int(baud if baud is not None else cfg_baud)
+    return selected_port, selected_baud
+
+
 def _get_dhz_settings(ip=None, port=None, random_shift=None):
     cfg_ip, cfg_port, cfg_random = "192.168.2.188", "5000", 0
     try:
@@ -125,6 +142,7 @@ def _disconnect_all_backends():
     NetAPI.disconnect()
     DHZAPI.disconnect()
     MakV2.disconnect()
+    MakV2Binary.disconnect()
 
 
 def disconnect_all(selected_mode: str = None):
@@ -173,6 +191,13 @@ def connect_to_makv2(port=None, baud=None) -> bool:
     return ok
 
 
+def connect_to_makv2binary(port=None, baud=None) -> bool:
+    port, baud = _get_makv2binary_settings(port=port, baud=baud)
+    ok = MakV2Binary.connect(port=port if port else None, baud=baud)
+    _sync_public_state()
+    return ok
+
+
 def connect_to_dhz(ip=None, port=None, random_shift=None) -> bool:
     ip, port, random_shift = _get_dhz_settings(ip=ip, port=port, random_shift=random_shift)
     ok = DHZAPI.connect(ip=ip, port=port, random_shift=random_shift)
@@ -203,6 +228,8 @@ def connect_to_makcu():
         return connect_to_net()
     if mode == "DHZ":
         return connect_to_dhz()
+    if mode == "MakV2Binary":
+        return connect_to_makv2binary()
     if mode == "MakV2":
         return connect_to_makv2()
     if mode == "Arduino":
@@ -224,6 +251,8 @@ def switch_backend(
     mac=None,
     makv2_port=None,
     makv2_baud=None,
+    makv2binary_port=None,
+    makv2binary_baud=None,
     dhz_ip=None,
     dhz_port=None,
     dhz_random=None,
@@ -256,6 +285,10 @@ def switch_backend(
             config.makv2_port = str(makv2_port)
         if makv2_baud is not None:
             config.makv2_baud = int(makv2_baud)
+        if makv2binary_port is not None:
+            config.makv2binary_port = str(makv2binary_port)
+        if makv2binary_baud is not None:
+            config.makv2binary_baud = int(makv2binary_baud)
         if dhz_ip is not None:
             config.dhz_ip = str(dhz_ip)
         if dhz_port is not None:
@@ -271,6 +304,10 @@ def switch_backend(
     if target_mode == "Net":
         ok = connect_to_net(ip=ip, port=port, uuid=uuid, mac=mac)
         return ok, (None if ok else (state.last_connect_error or "Net backend connect failed"))
+
+    if target_mode == "MakV2Binary":
+        ok = connect_to_makv2binary(port=makv2binary_port, baud=makv2binary_baud)
+        return ok, (None if ok else (state.last_connect_error or "MakV2Binary backend connect failed"))
 
     if target_mode == "MakV2":
         ok = connect_to_makv2(port=makv2_port, baud=makv2_baud)
@@ -305,6 +342,8 @@ def is_button_pressed(idx: int) -> bool:
         return NetAPI.is_button_pressed(idx)
     if state.active_backend == "DHZ":
         return DHZAPI.is_button_pressed(idx)
+    if state.active_backend == "MakV2Binary":
+        return MakV2Binary.is_button_pressed(idx)
     if state.active_backend == "MakV2":
         return MakV2.is_button_pressed(idx)
     if state.active_backend == "Arduino":
@@ -325,6 +364,8 @@ def test_move():
         NetAPI.move(100, 100)
     elif state.active_backend == "DHZ":
         DHZAPI.move(100, 100)
+    elif state.active_backend == "MakV2Binary":
+        MakV2Binary.move(100, 100)
     elif state.active_backend == "MakV2":
         MakV2.move(100, 100)
     elif state.active_backend == "Arduino":
@@ -338,7 +379,9 @@ def test_move():
 def lock_button_idx(idx: int):
     if not state.is_connected:
         return
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.lock_button_idx(idx)
+    elif state.active_backend == "MakV2":
         MakV2.lock_button_idx(idx)
     elif state.active_backend == "Serial":
         SerialAPI.lock_button_idx(idx)
@@ -347,49 +390,63 @@ def lock_button_idx(idx: int):
 def unlock_button_idx(idx: int):
     if not state.is_connected:
         return
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.unlock_button_idx(idx)
+    elif state.active_backend == "MakV2":
         MakV2.unlock_button_idx(idx)
     elif state.active_backend == "Serial":
         SerialAPI.unlock_button_idx(idx)
 
 
 def unlock_all_locks():
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.unlock_all_locks()
+    elif state.active_backend == "MakV2":
         MakV2.unlock_all_locks()
     elif state.active_backend == "Serial":
         SerialAPI.unlock_all_locks()
 
 
 def lock_movement_x(lock: bool = True, skip_lock: bool = False):
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.lock_movement_x(lock=lock, skip_lock=skip_lock)
+    elif state.active_backend == "MakV2":
         MakV2.lock_movement_x(lock=lock, skip_lock=skip_lock)
     elif state.active_backend == "Serial":
         SerialAPI.lock_movement_x(lock=lock, skip_lock=skip_lock)
 
 
 def lock_movement_y(lock: bool = True, skip_lock: bool = False):
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.lock_movement_y(lock=lock, skip_lock=skip_lock)
+    elif state.active_backend == "MakV2":
         MakV2.lock_movement_y(lock=lock, skip_lock=skip_lock)
     elif state.active_backend == "Serial":
         SerialAPI.lock_movement_y(lock=lock, skip_lock=skip_lock)
 
 
 def update_movement_lock(lock_x: bool, lock_y: bool, is_main: bool = True):
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.update_movement_lock(lock_x=lock_x, lock_y=lock_y, is_main=is_main)
+    elif state.active_backend == "MakV2":
         MakV2.update_movement_lock(lock_x=lock_x, lock_y=lock_y, is_main=is_main)
     elif state.active_backend == "Serial":
         SerialAPI.update_movement_lock(lock_x=lock_x, lock_y=lock_y, is_main=is_main)
 
 
 def tick_movement_lock_manager():
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.tick_movement_lock_manager()
+    elif state.active_backend == "MakV2":
         MakV2.tick_movement_lock_manager()
     elif state.active_backend == "Serial":
         SerialAPI.tick_movement_lock_manager()
 
 
 def mask_manager_tick(selected_idx: int, aimbot_running: bool):
-    if state.active_backend == "MakV2":
+    if state.active_backend == "MakV2Binary":
+        MakV2Binary.mask_manager_tick(selected_idx=selected_idx, aimbot_running=aimbot_running)
+    elif state.active_backend == "MakV2":
         MakV2.mask_manager_tick(selected_idx=selected_idx, aimbot_running=aimbot_running)
     elif state.active_backend == "Serial":
         SerialAPI.mask_manager_tick(selected_idx=selected_idx, aimbot_running=aimbot_running)
@@ -432,6 +489,8 @@ class Mouse:
             NetAPI.move(x, y)
         elif state.active_backend == "DHZ":
             DHZAPI.move(x, y)
+        elif state.active_backend == "MakV2Binary":
+            MakV2Binary.move(x, y)
         elif state.active_backend == "MakV2":
             MakV2.move(x, y)
         elif state.active_backend == "Arduino":
@@ -448,6 +507,8 @@ class Mouse:
             NetAPI.move_bezier(x, y, segments, ctrl_x, ctrl_y)
         elif state.active_backend == "DHZ":
             DHZAPI.move_bezier(x, y, segments, ctrl_x, ctrl_y)
+        elif state.active_backend == "MakV2Binary":
+            MakV2Binary.move_bezier(x, y, segments, ctrl_x, ctrl_y)
         elif state.active_backend == "MakV2":
             MakV2.move_bezier(x, y, segments, ctrl_x, ctrl_y)
         elif state.active_backend == "Arduino":
@@ -466,6 +527,9 @@ class Mouse:
         elif state.active_backend == "DHZ":
             DHZAPI.left(1)
             DHZAPI.left(0)
+        elif state.active_backend == "MakV2Binary":
+            MakV2Binary.left(1)
+            MakV2Binary.left(0)
         elif state.active_backend == "MakV2":
             MakV2.left(1)
             MakV2.left(0)
@@ -487,6 +551,8 @@ class Mouse:
             NetAPI.left(1)
         elif state.active_backend == "DHZ":
             DHZAPI.left(1)
+        elif state.active_backend == "MakV2Binary":
+            MakV2Binary.left(1)
         elif state.active_backend == "MakV2":
             MakV2.left(1)
         elif state.active_backend == "Arduino":
@@ -504,6 +570,8 @@ class Mouse:
             NetAPI.left(0)
         elif state.active_backend == "DHZ":
             DHZAPI.left(0)
+        elif state.active_backend == "MakV2Binary":
+            MakV2Binary.left(0)
         elif state.active_backend == "MakV2":
             MakV2.left(0)
         elif state.active_backend == "Arduino":
@@ -531,7 +599,7 @@ class Mouse:
                 state.movement_lock_state["lock_y"] = False
                 state.movement_lock_state["main_aimbot_locked"] = False
                 state.movement_lock_state["sec_aimbot_locked"] = False
-            if state.is_connected and state.active_backend in ("Serial", "MakV2"):
+            if state.is_connected and state.active_backend in ("Serial", "MakV2", "MakV2Binary"):
                 lock_movement_x(False)
                 lock_movement_y(False)
         except Exception:

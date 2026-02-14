@@ -403,7 +403,7 @@ class ViewerApp(ctk.CTk):
         self.mouse_api_option = self._add_option_row_in_frame(
             sec_hardware,
             "Input API",
-            ["Serial", "Arduino", "SendInput", "Net", "MakV2", "DHZ"],
+            ["Serial", "Arduino", "SendInput", "Net", "MakV2", "MakV2Binary", "DHZ"],
             self._on_mouse_api_changed,
         )
         self.var_auto_connect_mouse_api = tk.BooleanVar(value=bool(getattr(config, "auto_connect_mouse_api", False)))
@@ -419,6 +419,8 @@ class ViewerApp(ctk.CTk):
             current_mouse_api = "Net"
         elif current_mouse_api_norm == "dhz":
             current_mouse_api = "DHZ"
+        elif current_mouse_api_norm in ("makv2binary", "makv2_binary", "makv2-binary", "binary"):
+            current_mouse_api = "MakV2Binary"
         elif current_mouse_api_norm in ("makv2", "mak_v2", "mak-v2"):
             current_mouse_api = "MakV2"
         elif current_mouse_api_norm == "arduino":
@@ -931,6 +933,8 @@ class ViewerApp(ctk.CTk):
             self.saved_mouse_api = "Net"
         elif mode_norm == "dhz":
             self.saved_mouse_api = "DHZ"
+        elif mode_norm in ("makv2binary", "makv2_binary", "makv2-binary", "binary"):
+            self.saved_mouse_api = "MakV2Binary"
         elif mode_norm in ("makv2", "mak_v2", "mak-v2"):
             self.saved_mouse_api = "MakV2"
         elif mode_norm == "arduino":
