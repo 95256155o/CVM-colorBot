@@ -1,4 +1,4 @@
-from src.utils.debug_logger import log_print
+﻿from src.utils.debug_logger import log_print
 import json
 import os
 
@@ -12,23 +12,44 @@ class Config:
         self.offsetY = 3
         
         # --- Aimbot Offsets ---
-        self.aim_offsetX = 0  # Aimbot 專用 X 偏移
-        self.aim_offsetY = 0  # Aimbot 專用 Y 偏移
-        self.aim_type = "head"  # Aimbot 瞄準類型: head, body, nearest
+        self.aim_offsetX = 0  # Aimbot 灏堢敤 X 鍋忕Щ
+        self.aim_offsetY = 0  # Aimbot 灏堢敤 Y 鍋忕Щ
+        self.aim_type = "head"  # Aimbot 鐬勬簴椤炲瀷: head, body, nearest
 
         self.color = "purple"
         
         # --- Detection Parameters ---
-        self.detection_merge_distance = 250  # 矩形合併距離閾值 (50-500)
-        self.detection_min_contour_points = 5  # 最小輪廓點數 (3-100)
+        self.detection_merge_distance = 12
+        self.detection_min_contour_points = 5  # 鏈€灏忚吉寤撻粸鏁?(3-100)
+        self.detection_open_kernel = 3
+        self.detection_close_kernel = 5
+        self.detection_mask_blur = 3
+        self.detection_min_bbox_area = 120
+        self.detection_min_contour_area = 40
+        self.detection_min_fill_ratio = 0.16
+        self.detection_edge_reject_area = 220
+        self.detection_edge_min_contour_area = 140
+        self.detection_edge_min_side = 10
+        self.detection_border_margin = 1
+        self.detection_min_width = 6
+        self.detection_min_height = 8
+        self.detection_min_aspect = 0.12
+        self.detection_max_aspect = 2.8
+        self.detection_require_vertical_line = False
+        self.min_detection_bbox_area = 150
+        self.head_estimate_ratio = 0.22
+        self.head_refine_min_pixels = 20
+        self.aim_latest_frame_priority = True
+        self.enable_target_temporal_smoothing = False
+        self.move_queue_merge_batch = 4
         
         # --- Custom HSV Settings ---
-        self.custom_hsv_min_h = 0    # H 最小值 (0-179)
-        self.custom_hsv_min_s = 0    # S 最小值 (0-255)
-        self.custom_hsv_min_v = 0    # V 最小值 (0-255)
-        self.custom_hsv_max_h = 179  # H 最大值 (0-179)
-        self.custom_hsv_max_s = 255  # S 最大值 (0-255)
-        self.custom_hsv_max_v = 255  # V 最大值 (0-255)
+        self.custom_hsv_min_h = 0    # H 鏈€灏忓€?(0-179)
+        self.custom_hsv_min_s = 0    # S 鏈€灏忓€?(0-255)
+        self.custom_hsv_min_v = 0    # V 鏈€灏忓€?(0-255)
+        self.custom_hsv_max_h = 179  # H 鏈€澶у€?(0-179)
+        self.custom_hsv_max_s = 255  # S 鏈€澶у€?(0-255)
+        self.custom_hsv_max_v = 255  # V 鏈€澶у€?(0-255)
 
         
         # --- Mouse / MAKCU ---
@@ -57,33 +78,41 @@ class Config:
         self.aimbot_activation_type = "hold_enable"  # Main Aimbot: hold_enable, hold_disable, toggle, use_enable
         self.aimbot_activation_type_sec = "hold_enable"  # Sec Aimbot: hold_enable, hold_disable, toggle, use_enable
         # --- Aimbot Mode ---
-        self.mode = "Normal"        # Main Aimbot 模式: Normal, Silent, NCAF, WindMouse, Bezier
-        self.mode_sec = "Normal"    # Sec Aimbot 模式: Normal, Silent, NCAF, WindMouse, Bezier
+        self.mode = "Normal"        # Main Aimbot 妯″紡: Normal, Silent, NCAF, WindMouse, Bezier
+        self.mode_sec = "Normal"    # Sec Aimbot 妯″紡: Normal, Silent, NCAF, WindMouse, Bezier
 
         self.fovsize = 100
         self.tbfovsize = 5 
-        # Triggerbot delay range (隨機範圍，秒)
+        # Triggerbot delay range (闅ㄦ绡勫湇锛岀)
         self.tbdelay_min = 0.08
         self.tbdelay_max = 0.15
-        # Triggerbot hold range (隨機範圍，毫秒)
+        # Triggerbot hold range (闅ㄦ绡勫湇锛屾绉?
         self.tbhold_min = 40
         self.tbhold_max = 60
-        # Triggerbot 連發設置（範圍）
-        self.tbcooldown_min = 0.0  # 冷卻時間最小值（秒）
-        self.tbcooldown_max = 0.0  # 冷卻時間最大值（秒）
-        self.tbburst_count_min = 1  # 連發次數最小值
-        self.tbburst_count_max = 1  # 連發次數最大值
-        self.tbburst_interval_min = 0.0  # 連發間隔最小值（毫秒）
-        self.tbburst_interval_max = 0.0  # 連發間隔最大值（毫秒）
+        # Triggerbot 閫ｇ櫦瑷疆锛堢瘎鍦嶏級
+        self.tbcooldown_min = 0.0  # 鍐峰嵒鏅傞枔鏈€灏忓€硷紙绉掞級
+        self.tbcooldown_max = 0.0  # 鍐峰嵒鏅傞枔鏈€澶у€硷紙绉掞級
+        self.tbburst_count_min = 1  # 閫ｇ櫦娆℃暩鏈€灏忓€?
+        self.tbburst_count_max = 1  # 閫ｇ櫦娆℃暩鏈€澶у€?
+        self.tbburst_interval_min = 0.0  # 閫ｇ櫦闁撻殧鏈€灏忓€硷紙姣锛?
+        self.tbburst_interval_max = 0.0  # 閫ｇ櫦闁撻殧鏈€澶у€硷紙姣锛?
+        self.trigger_activation_type = "hold_enable"  # hold_enable, hold_disable, toggle
         
-        # RCS (Recoil Control System) 設置
-        self.enablercs = False  # 是否啟用 RCS
-        self.rcs_pull_speed = 10  # 下拉速度（1-20）
-        self.rcs_activation_delay = 100  # 啟動延遲（50-500ms）
-        self.rcs_rapid_click_threshold = 200  # 快速點擊閾值（100-1000ms）
-        # RCS Y 軸解鎖設置
-        self.rcs_release_y_enabled = False  # 是否啟用左鍵按下時解鎖 Y 軸移動
-        self.rcs_release_y_duration = 1.0  # Y 軸解鎖持續時間（0.1~5秒）
+        self.trigger_roi_size = 8
+        self.trigger_min_pixels = 4
+        self.trigger_min_ratio = 0.03
+        self.trigger_confirm_frames = 2
+        self.switch_confirm_frames = 3
+        self.ema_alpha = 0.35
+        
+        # RCS (Recoil Control System) 瑷疆
+        self.enablercs = False  # 鏄惁鍟熺敤 RCS
+        self.rcs_pull_speed = 10  # 涓嬫媺閫熷害锛?-20锛?
+        self.rcs_activation_delay = 100  # 鍟熷嫊寤堕伈锛?0-500ms锛?
+        self.rcs_rapid_click_threshold = 200  # 蹇€熼粸鎿婇柧鍊硷紙100-1000ms锛?
+        # RCS Y 杌歌В閹栬ō缃?
+        self.rcs_release_y_enabled = False  # 鏄惁鍟熺敤宸﹂嵉鎸変笅鏅傝В閹?Y 杌哥Щ鍕?
+        self.rcs_release_y_duration = 1.0  # Y 杌歌В閹栨寔绾屾檪闁擄紙0.1~5绉掞級
         # --- Normal Aim ---
         self.normal_x_speed = 3
         self.normal_y_speed = 3
@@ -99,9 +128,9 @@ class Config:
         self.normalsmoothfov_sec = 20
         self.fovsize_sec = 150
         self.selected_mouse_button_sec = 2
-        self.aim_offsetX_sec = 0  # Sec Aimbot X 偏移
-        self.aim_offsetY_sec = 0  # Sec Aimbot Y 偏移
-        self.aim_type_sec = "head"  # Sec Aimbot 瞄準類型
+        self.aim_offsetX_sec = 0  # Sec Aimbot X 鍋忕Щ
+        self.aim_offsetY_sec = 0  # Sec Aimbot Y 鍋忕Щ
+        self.aim_type_sec = "head"  # Sec Aimbot 鐬勬簴椤炲瀷
         
         # --- NCAF Parameters (Main) ---
         # Snap Radius = outer engagement zone (larger), Near Radius = inner precision zone (smaller)
@@ -110,9 +139,9 @@ class Config:
         self.ncaf_alpha = 1.5
         self.ncaf_snap_boost = 0.3
         self.ncaf_max_step = 50.0
-        self.ncaf_min_speed_multiplier = 0.01  # 滑鼠移動速度的最小倍率
-        self.ncaf_max_speed_multiplier = 10.0  # 滑鼠移動速度的最大倍率
-        self.ncaf_prediction_interval = 0.016  # 目標預測函數的處理速度（秒，約60fps）
+        self.ncaf_min_speed_multiplier = 0.01  # 婊戦紶绉诲嫊閫熷害鐨勬渶灏忓€嶇巼
+        self.ncaf_max_speed_multiplier = 10.0  # 婊戦紶绉诲嫊閫熷害鐨勬渶澶у€嶇巼
+        self.ncaf_prediction_interval = 0.016  # 鐩闋愭脯鍑芥暩鐨勮檿鐞嗛€熷害锛堢锛岀磩60fps锛?
         
         # --- NCAF Parameters (Sec) ---
         self.ncaf_snap_radius_sec = 150.0
@@ -120,9 +149,9 @@ class Config:
         self.ncaf_alpha_sec = 1.5
         self.ncaf_snap_boost_sec = 0.3
         self.ncaf_max_step_sec = 50.0
-        self.ncaf_min_speed_multiplier_sec = 0.01  # 滑鼠移動速度的最小倍率
-        self.ncaf_max_speed_multiplier_sec = 10.0  # 滑鼠移動速度的最大倍率
-        self.ncaf_prediction_interval_sec = 0.016  # 目標預測函數的處理速度（秒，約60fps）
+        self.ncaf_min_speed_multiplier_sec = 0.01  # 婊戦紶绉诲嫊閫熷害鐨勬渶灏忓€嶇巼
+        self.ncaf_max_speed_multiplier_sec = 10.0  # 婊戦紶绉诲嫊閫熷害鐨勬渶澶у€嶇巼
+        self.ncaf_prediction_interval_sec = 0.016  # 鐩闋愭脯鍑芥暩鐨勮檿鐞嗛€熷害锛堢锛岀磩60fps锛?
         
         # --- WindMouse Parameters (Main) ---
         self.wm_gravity = 9.0
@@ -131,7 +160,7 @@ class Config:
         self.wm_min_step = 2.0
         self.wm_min_delay = 0.001
         self.wm_max_delay = 0.003
-        self.wm_distance_threshold = 50.0  # 距離閾值，低於此值時移動更精確
+        self.wm_distance_threshold = 50.0  # 璺濋洟闁惧€硷紝浣庢柤姝ゅ€兼檪绉诲嫊鏇寸簿纰?
         
         # --- WindMouse Parameters (Sec) ---
         self.wm_gravity_sec = 9.0
@@ -140,7 +169,7 @@ class Config:
         self.wm_min_step_sec = 2.0
         self.wm_min_delay_sec = 0.001
         self.wm_max_delay_sec = 0.003
-        self.wm_distance_threshold_sec = 50.0  # 距離閾值，低於此值時移動更精確
+        self.wm_distance_threshold_sec = 50.0  # 璺濋洟闁惧€硷紝浣庢柤姝ゅ€兼檪绉诲嫊鏇寸簿纰?
         
         # --- Bezier Parameters (Main) ---
         self.bezier_segments = 8
@@ -157,10 +186,10 @@ class Config:
         self.bezier_delay_sec = 0.002
         
         # --- Silent Mode Parameters ---
-        self.silent_distance = 1.0  # 移動倍率（用於調整移動距離的倍數）
-        self.silent_delay = 100.0  # 兩次開槍的最小間隔（毫秒）
-        self.silent_move_delay = 500.0  # 移動滑鼠到目標位置的延遲（毫秒）
-        self.silent_return_delay = 500.0  # 移動回原位置的延遲（毫秒）
+        self.silent_distance = 1.0  # 绉诲嫊鍊嶇巼锛堢敤鏂艰鏁寸Щ鍕曡窛闆㈢殑鍊嶆暩锛?
+        self.silent_delay = 100.0  # 鍏╂闁嬫鐨勬渶灏忛枔闅旓紙姣锛?
+        self.silent_move_delay = 500.0  # 绉诲嫊婊戦紶鍒扮洰妯欎綅缃殑寤堕伈锛堟绉掞級
+        self.silent_return_delay = 500.0  # 绉诲嫊鍥炲師浣嶇疆鐨勫欢閬诧紙姣锛?
         
         # --- Anti-Smoke Settings ---
         self.anti_smoke_enabled = False  # Main Aimbot Anti-Smoke
@@ -168,11 +197,11 @@ class Config:
         
         # --- OpenCV Display Settings ---
         self.show_opencv_windows = True
-        # 單獨的 OpenCV 視窗開關
-        self.show_opencv_mask = True  # MASK 視窗（main.py）
-        self.show_opencv_detection = True  # Detection 視窗（main.py）
-        self.show_opencv_roi = True  # ROI 視窗（Triggerbot.py）
-        self.show_opencv_triggerbot_mask = True  # Mask 視窗（Triggerbot.py）
+        # 鍠崹鐨?OpenCV 瑕栫獥闁嬮棞
+        self.show_opencv_mask = True  # MASK 瑕栫獥锛坢ain.py锛?
+        self.show_opencv_detection = True  # Detection 瑕栫獥锛坢ain.py锛?
+        self.show_opencv_roi = True  # ROI 瑕栫獥锛圱riggerbot.py锛?
+        self.show_opencv_triggerbot_mask = True  # Mask 瑕栫獥锛圱riggerbot.py锛?
         self.show_ndi_raw_stream_window = False
         self.show_udp_raw_stream_window = False
         self.show_mode_text = True
@@ -189,17 +218,17 @@ class Config:
         self.last_ndi_source = None
         
         # --- MSS Settings ---
-        self.mss_monitor_index = 1  # 螢幕索引 (1=主螢幕)
-        self.mss_fov_x = 320       # 擷取區域寬度的一半 (像素)
-        self.mss_fov_y = 320       # 擷取區域高度的一半 (像素)
+        self.mss_monitor_index = 1  # 铻㈠箷绱㈠紩 (1=涓昏灑骞?
+        self.mss_fov_x = 320       # 鎿峰彇鍗€鍩熷搴︾殑涓€鍗?(鍍忕礌)
+        self.mss_fov_y = 320       # 鎿峰彇鍗€鍩熼珮搴︾殑涓€鍗?(鍍忕礌)
         
         # --- NDI FOV Settings ---
-        self.ndi_fov_enabled = False  # 是否啟用 NDI 中心裁切
-        self.ndi_fov = 320            # NDI 正方形裁切區域邊長的一半 (像素)
+        self.ndi_fov_enabled = False  # 鏄惁鍟熺敤 NDI 涓績瑁佸垏
+        self.ndi_fov = 320            # NDI 姝ｆ柟褰㈣鍒囧崁鍩熼倞闀风殑涓€鍗?(鍍忕礌)
         
         # --- UDP FOV Settings ---
-        self.udp_fov_enabled = False  # 是否啟用 UDP 中心裁切
-        self.udp_fov = 320            # UDP 正方形裁切區域邊長的一半 (像素)
+        self.udp_fov_enabled = False  # 鏄惁鍟熺敤 UDP 涓績瑁佸垏
+        self.udp_fov = 320            # UDP 姝ｆ柟褰㈣鍒囧崁鍩熼倞闀风殑涓€鍗?(鍍忕礌)
         
         # --- CaptureCard Settings ---
         self.capture_device_index = 0
@@ -207,8 +236,8 @@ class Config:
         self.capture_height = 1080
         self.capture_fps = 240
         self.capture_fourcc_preference = ["NV12", "YUY2", "MJPG"]
-        self.capture_range_x = 128  # 最低值 128
-        self.capture_range_y = 128  # 最低值 128
+        self.capture_range_x = 128  # 鏈€浣庡€?128
+        self.capture_range_y = 128  # 鏈€浣庡€?128
         self.capture_offset_x = 0
         self.capture_offset_y = 0
         
@@ -216,7 +245,7 @@ class Config:
         self.target_fps = 80  # Target processing FPS (limits main loop frequency)
         
         # --- Button Mask Settings ---
-        self.button_mask_enabled = False  # 總開關
+        self.button_mask_enabled = False  # 绺介枊闂?
         self.mask_left_button = False     # L (0)
         self.mask_right_button = False    # R (1)
         self.mask_middle_button = False   # M (2)
@@ -224,16 +253,16 @@ class Config:
         self.mask_side5_button = False    # S5 (4)
         
         # --- Mouse Lock Settings ---
-        self.mouse_lock_main_x = False        # 鎖定 Main Aimbot X 軸
-        self.mouse_lock_main_y = False        # 鎖定 Main Aimbot Y 軸
-        self.mouse_lock_sec_x = False         # 鎖定 Sec Aimbot X 軸
-        self.mouse_lock_sec_y = False         # 鎖定 Sec Aimbot Y 軸
+        self.mouse_lock_main_x = False        # 閹栧畾 Main Aimbot X 杌?
+        self.mouse_lock_main_y = False        # 閹栧畾 Main Aimbot Y 杌?
+        self.mouse_lock_sec_x = False         # 閹栧畾 Sec Aimbot X 杌?
+        self.mouse_lock_sec_y = False         # 閹栧畾 Sec Aimbot Y 杌?
         
-        # 載入保存的配置（如果存在）
+        # 杓夊叆淇濆瓨鐨勯厤缃紙濡傛灉瀛樺湪锛?
         self.load_from_file()
     
     def to_dict(self):
-        """將配置轉換為字典 - 包含所有設置"""
+        """灏囬厤缃綁鎻涚偤瀛楀吀 - 鍖呭惈鎵€鏈夎ō缃?"""
         return {
             # General Settings
             "enableaim": self.enableaim,
@@ -248,6 +277,27 @@ class Config:
             # Detection Parameters
             "detection_merge_distance": self.detection_merge_distance,
             "detection_min_contour_points": self.detection_min_contour_points,
+            "detection_open_kernel": self.detection_open_kernel,
+            "detection_close_kernel": self.detection_close_kernel,
+            "detection_mask_blur": self.detection_mask_blur,
+            "detection_min_bbox_area": self.detection_min_bbox_area,
+            "detection_min_contour_area": self.detection_min_contour_area,
+            "detection_min_fill_ratio": self.detection_min_fill_ratio,
+            "detection_edge_reject_area": self.detection_edge_reject_area,
+            "detection_edge_min_contour_area": self.detection_edge_min_contour_area,
+            "detection_edge_min_side": self.detection_edge_min_side,
+            "detection_border_margin": self.detection_border_margin,
+            "detection_min_width": self.detection_min_width,
+            "detection_min_height": self.detection_min_height,
+            "detection_min_aspect": self.detection_min_aspect,
+            "detection_max_aspect": self.detection_max_aspect,
+            "detection_require_vertical_line": self.detection_require_vertical_line,
+            "min_detection_bbox_area": self.min_detection_bbox_area,
+            "head_estimate_ratio": self.head_estimate_ratio,
+            "head_refine_min_pixels": self.head_refine_min_pixels,
+            "aim_latest_frame_priority": self.aim_latest_frame_priority,
+            "enable_target_temporal_smoothing": self.enable_target_temporal_smoothing,
+            "move_queue_merge_batch": self.move_queue_merge_batch,
             
             # Custom HSV Settings
             "custom_hsv_min_h": self.custom_hsv_min_h,
@@ -279,6 +329,8 @@ class Config:
             "dhz_ip": self.dhz_ip,
             "dhz_port": self.dhz_port,
             "dhz_random": self.dhz_random,
+            "aimbot_activation_type": self.aimbot_activation_type,
+            "aimbot_activation_type_sec": self.aimbot_activation_type_sec,
             
             # Aimbot Mode
             "mode": self.mode,
@@ -295,6 +347,13 @@ class Config:
             "tbburst_count_max": self.tbburst_count_max,
             "tbburst_interval_min": self.tbburst_interval_min,
             "tbburst_interval_max": self.tbburst_interval_max,
+            "trigger_activation_type": self.trigger_activation_type,
+            "trigger_roi_size": self.trigger_roi_size,
+            "trigger_min_pixels": self.trigger_min_pixels,
+            "trigger_min_ratio": self.trigger_min_ratio,
+            "trigger_confirm_frames": self.trigger_confirm_frames,
+            "switch_confirm_frames": self.switch_confirm_frames,
+            "ema_alpha": self.ema_alpha,
             
             # RCS Settings
             "enablercs": self.enablercs,
@@ -440,7 +499,7 @@ class Config:
         }
     
     def from_dict(self, data):
-        """從字典載入配置"""
+        """寰炲瓧鍏歌級鍏ラ厤缃?"""
         for key, value in data.items():
             if hasattr(self, key):
                 setattr(self, key, value)
@@ -461,7 +520,7 @@ class Config:
         self.net_mac = self.net_uuid
     
     def save_to_file(self, filename="config.json"):
-        """保存配置到文件"""
+        """淇濆瓨閰嶇疆鍒版枃浠?"""
         try:
             with open(filename, 'w') as f:
                 json.dump(self.to_dict(), f, indent=4)
@@ -469,9 +528,11 @@ class Config:
             log_print(f"[Config] Failed to save configuration: {e}")
     
     def load_from_file(self, filename="config.json"):
-        """從文件載入配置"""
+        """寰炴枃浠惰級鍏ラ厤缃?"""
         try:
             if os.path.exists(filename):
+                if os.path.getsize(filename) == 0:
+                    return
                 with open(filename, 'r') as f:
                     data = json.load(f)
                 self.from_dict(data)
@@ -482,3 +543,6 @@ class Config:
 
 
 config = Config()
+
+
+

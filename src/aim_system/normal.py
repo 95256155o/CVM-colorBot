@@ -9,11 +9,95 @@ import threading
 import time
 
 from src.utils.config import config
-from src.utils.mouse import is_button_pressed
 from src.utils.debug_logger import log_move, log_print
 from src.utils.activation import check_aimbot_activation
 from .Triggerbot import process_triggerbot
 from .RCS import process_rcs, check_y_release
+
+
+def _queue_move(tracker, dx, dy, delay=0.0, drop_oldest=True):
+    """Non-blocking queue push with light backpressure handling."""
+    item = (dx, dy, max(0.0, float(delay)))
+    try:
+        tracker.move_queue.put_nowait(item)
+        return True
+    except queue.Full:
+        if drop_oldest:
+            try:
+                tracker.move_queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                tracker.move_queue.put_nowait(item)
+                return True
+            except queue.Full:
+                return False
+        return False
+
+
+def _enqueue_path(tracker, path, max_steps=24, clear_existing=False):
+    """Queue smooth-path steps into move queue instead of spawning worker threads."""
+    if not path:
+        return
+
+    latest_only = bool(getattr(config, "aim_latest_frame_priority", True))
+
+    # In latest-frame mode, collapse path into one command so each detection frame
+    # immediately maps to one movement decision (no stale sub-steps trailing behind).
+    if latest_only:
+        total_dx = 0.0
+        total_dy = 0.0
+        used_steps = 0
+        for step in path:
+            if used_steps >= max_steps:
+                break
+            if len(step) < 3:
+                continue
+            step_dx, step_dy, _ = step
+            step_dx, step_dy = tracker._clip_movement(step_dx, step_dy)
+            total_dx += float(step_dx)
+            total_dy += float(step_dy)
+            used_steps += 1
+        qdx = int(round(total_dx))
+        qdy = int(round(total_dy))
+        if qdx == 0 and qdy == 0 and (abs(total_dx) + abs(total_dy)) >= 0.35:
+            if abs(total_dx) >= abs(total_dy):
+                qdx = 1 if total_dx > 0 else -1
+            else:
+                qdy = 1 if total_dy > 0 else -1
+        if qdx != 0 or qdy != 0:
+            _queue_move(tracker, qdx, qdy, 0.0, drop_oldest=True)
+        return
+
+    if clear_existing:
+        try:
+            while not tracker.move_queue.empty():
+                tracker.move_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+    queued = 0
+    residual_x = 0.0
+    residual_y = 0.0
+    for step in path:
+        if queued >= max_steps:
+            break
+        if len(step) < 3:
+            continue
+        step_dx, step_dy, delay = step
+        step_dx, step_dy = tracker._clip_movement(step_dx, step_dy)
+        accum_x = float(step_dx) + residual_x
+        accum_y = float(step_dy) + residual_y
+        qdx = int(round(accum_x))
+        qdy = int(round(accum_y))
+        residual_x = accum_x - qdx
+        residual_y = accum_y - qdy
+        if qdx == 0 and qdy == 0:
+            continue
+        if _queue_move(tracker, qdx, qdy, delay, drop_oldest=False):
+            queued += 1
+        else:
+            break
 
 
 def calculate_movement(dx, dy, sens, dpi):
@@ -39,6 +123,30 @@ def calculate_movement(dx, dy, sens, dpi):
     ndy = dy * deg_per_count
     
     return ndx, ndy
+
+
+def _quantize_with_residual(tracker, ndx, ndy, is_sec=False):
+    """Carry sub-pixel movement to reduce stop-go jitter from integer conversion."""
+    residual_key = "_normal_residual_sec" if is_sec else "_normal_residual_main"
+    residual_x, residual_y = getattr(tracker, residual_key, (0.0, 0.0))
+
+    sum_x = float(ndx) + residual_x
+    sum_y = float(ndy) + residual_y
+    out_x = int(round(sum_x))
+    out_y = int(round(sum_y))
+
+    setattr(tracker, residual_key, (sum_x - out_x, sum_y - out_y))
+    return out_x, out_y
+
+
+def compute_silent_delta(dx, dy, multiplier, max_speed):
+    """Scale silent movement and clamp into safe range."""
+    dx_scaled = float(dx) * float(multiplier)
+    dy_scaled = float(dy) * float(multiplier)
+    speed_cap = abs(float(max_speed))
+    dx_scaled = max(-speed_cap, min(speed_cap, dx_scaled))
+    dy_scaled = max(-speed_cap, min(speed_cap, dy_scaled))
+    return int(round(dx_scaled)), int(round(dy_scaled))
 
 
 def _flush_move_queue(tracker):
@@ -87,6 +195,12 @@ def _apply_normal_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         ndy *= y_speed
     
     ddx, ddy = tracker._clip_movement(ndx, ndy)
+    qdx, qdy = _quantize_with_residual(tracker, ddx, ddy, is_sec=is_sec)
+    if qdx == 0 and qdy == 0 and (abs(dx) + abs(dy)) >= 3.0:
+        if abs(dx) >= abs(dy):
+            qdx = 1 if dx > 0 else -1
+        else:
+            qdy = 1 if dy > 0 else -1
     
     # 更新移動鎖定狀態（如果啟用）
     try:
@@ -108,9 +222,9 @@ def _apply_normal_aim(dx, dy, distance_to_center, tracker, is_sec=False):
     distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
     dynamic_delay = 0.005 * (1.0 - distance_factor * 0.4)
     
-    _flush_move_queue(tracker)
-    tracker.move_queue.put((ddx, ddy, dynamic_delay))
-    log_move(ddx, ddy, label)
+    if qdx != 0 or qdy != 0:
+        _queue_move(tracker, qdx, qdy, dynamic_delay, drop_oldest=True)
+        log_move(qdx, qdy, label)
 
 
 # =====================================================
@@ -140,18 +254,37 @@ def _apply_silent_aim(dx, dy, tracker, is_sec=False):
         pass
     
     # 轉換為整數（不再應用速度倍數，因為 Silent 模式使用固定移動）
-    dx_raw = int(dx)
-    dy_raw = int(dy)
+    distance_multiplier = float(getattr(tracker, "silent_distance", 1.0))
+    dx_raw, dy_raw = compute_silent_delta(
+        dx,
+        dy,
+        distance_multiplier,
+        getattr(tracker, "max_speed", 1000.0),
+    )
+    if dx_raw == 0 and dy_raw == 0:
+        return
+    current_time = time.time()
+    silent_delay_sec = max(0.0, float(getattr(tracker, "silent_delay", 100.0)) / 1000.0)
+    last_click_time = float(getattr(tracker, "last_silent_click_time", 0.0))
+    if current_time - last_click_time < silent_delay_sec:
+        return
+    if getattr(tracker, "_silent_move_active", False):
+        return
     
     # 使用 Silent 模式的延遲參數（毫秒）
     move_delay = getattr(tracker, "silent_move_delay", 500.0)
     return_delay = getattr(tracker, "silent_return_delay", 500.0)
-    
-    threading.Thread(
-        target=threaded_silent_move,
-        args=(tracker.controller, dx_raw, dy_raw, move_delay, return_delay),
-        daemon=True
-    ).start()
+
+    tracker.last_silent_click_time = current_time
+    tracker._silent_move_active = True
+
+    def _run_silent_move():
+        try:
+            threaded_silent_move(tracker.controller, dx_raw, dy_raw, move_delay, return_delay)
+        finally:
+            tracker._silent_move_active = False
+
+    threading.Thread(target=_run_silent_move, daemon=True).start()
 
 
 # =====================================================
@@ -298,9 +431,16 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
     distance_factor = min(distance_with_pred / max(fov, 1.0), 1.0)
     dynamic_delay = 0.003 * (1.0 - distance_factor * 0.3)
 
-    _flush_move_queue(tracker)
-    tracker.move_queue.put((ddx, ddy, dynamic_delay))
-    log_move(ddx, ddy, label)
+    qdx, qdy = _quantize_with_residual(tracker, ddx, ddy, is_sec=is_sec)
+    if qdx == 0 and qdy == 0 and pixel_dist >= 3.0:
+        if abs(dx_with_pred) >= abs(dy_with_pred):
+            qdx = 1 if dx_with_pred > 0 else -1
+        else:
+            qdy = 1 if dy_with_pred > 0 else -1
+
+    if qdx != 0 or qdy != 0:
+        _queue_move(tracker, qdx, qdy, dynamic_delay, drop_oldest=True)
+        log_move(qdx, qdy, label)
 
 
 # =====================================================
@@ -388,16 +528,7 @@ def _apply_windmouse_aim(dx, dy, tracker, is_sec=False):
         except Exception:
             pass
         
-        def execute_path():
-            for step_dx, step_dy, delay in path:
-                try:
-                    tracker.controller.move(step_dx, step_dy)
-                except Exception:
-                    pass
-                if delay > 0:
-                    time.sleep(delay)
-        
-        threading.Thread(target=execute_path, daemon=True).start()
+        _enqueue_path(tracker, path, max_steps=24, clear_existing=False)
         log_move(ndx, ndy, label)
 
 
@@ -459,19 +590,14 @@ def _apply_bezier_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         distance_factor = min(distance_to_center / max(fov, 1.0), 1.0)
         step_delay = delay * (1.0 - distance_factor * 0.3)
 
-        def execute_bezier():
-            for step_dx, step_dy in deltas:
-                sdx = int(round(step_dx))
-                sdy = int(round(step_dy))
-                if sdx != 0 or sdy != 0:
-                    try:
-                        tracker.controller.move(sdx, sdy)
-                    except Exception:
-                        pass
-                if step_delay > 0:
-                    time.sleep(step_delay)
+        path = []
+        for step_dx, step_dy in deltas:
+            sdx = int(round(step_dx))
+            sdy = int(round(step_dy))
+            if sdx != 0 or sdy != 0:
+                path.append((sdx, sdy, step_delay))
 
-        threading.Thread(target=execute_bezier, daemon=True).start()
+        _enqueue_path(tracker, path, max_steps=24, clear_existing=False)
         log_move(ndx, ndy, label)
 
 
@@ -622,7 +748,8 @@ def process_normal_mode(targets, frame, img, tracker):
             tracker.tbhold_min, tracker.tbhold_max,
             tracker.tbcooldown_min, tracker.tbcooldown_max,
             tracker.tbburst_count_min, tracker.tbburst_count_max,
-            tracker.tbburst_interval_min, tracker.tbburst_interval_max
+            tracker.tbburst_interval_min, tracker.tbburst_interval_max,
+            targets=targets,
         )
     except Exception as e:
         log_print("[Triggerbot error]", e)

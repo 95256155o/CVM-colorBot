@@ -1,275 +1,398 @@
 """
-Triggerbot 模組
-處理自動觸發射擊邏輯，支持連發功能
+Triggerbot module.
 """
-from src.utils.debug_logger import log_print
-import time
-import cv2
 import random
 import threading
+import time
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 from src.utils.config import config
+from src.utils.debug_logger import log_print
 from src.utils.mouse import is_button_pressed
 
 
-# 全局變量用於管理連發狀態
 _triggerbot_state = {
-    "last_trigger_time": 0.0,  # 最後觸發時間（用於 cooldown）
-    "current_cooldown": 0.0,  # 當前使用的 cooldown 值（從範圍中隨機選擇）
-    "enter_range_time": None,  # 第一次進入範圍的時間
-    "random_delay": None,  # 固定的隨機延遲值（在第一次進入範圍時設置）
-    "burst_state": None,  # 連發狀態：None, "waiting", "bursting"
-    "burst_thread": None,  # 連發線程
-    "burst_lock": threading.Lock()  # 線程鎖
+    "last_trigger_time": 0.0,
+    "current_cooldown": 0.0,
+    "enter_range_time": None,
+    "random_delay": None,
+    "burst_state": None,  # None, waiting, bursting
+    "burst_thread": None,
+    "confirm_count": 0,
+    "activation_last_pressed": False,
+    "activation_toggle_state": False,
+    "burst_lock": threading.Lock(),
 }
 
 
-def _execute_burst_sequence(controller, burst_count_min, burst_count_max, hold_min, hold_max, interval_min, interval_max):
-    """
-    執行連發序列
-    
-    Args:
-        controller: 滑鼠控制器
-        burst_count_min: 連發次數最小值
-        burst_count_max: 連發次數最大值
-        hold_min: 按鍵保持時間最小值（毫秒）
-        hold_max: 按鍵保持時間最大值（毫秒）
-        interval_min: 連發間隔最小值（毫秒）
-        interval_max: 連發間隔最大值（毫秒）
-    """
-    # 從範圍中隨機選擇連發次數
-    burst_count = random.randint(burst_count_min, burst_count_max)
+def _safe_destroy_window(name):
+    if cv2 is None:
+        return
+    try:
+        cv2.destroyWindow(name)
+    except Exception:
+        pass
+
+
+def _close_trigger_debug_windows():
+    _safe_destroy_window("ROI")
+    _safe_destroy_window("Mask")
+
+
+def _is_valid_button_index(value):
+    try:
+        button_index = int(value)
+    except (TypeError, ValueError):
+        return False
+    return 0 <= button_index <= 4
+
+
+def _safe_button_pressed(value):
+    if not _is_valid_button_index(value):
+        return False
+    try:
+        return bool(is_button_pressed(int(value)))
+    except Exception:
+        return False
+
+
+def evaluate_trigger_metrics(pixel_count, roi_area, min_pixels, min_ratio):
+    """Return detected flag and ratio based on pixel/ratio thresholds."""
+    safe_area = max(int(roi_area), 1)
+    ratio = float(pixel_count) / float(safe_area)
+    detected = int(pixel_count) >= int(min_pixels) and ratio >= float(min_ratio)
+    return detected, ratio
+
+
+def update_confirm_counter(current_count, detected, confirm_frames):
+    """Advance/reset trigger confirm counter."""
+    required = max(1, int(confirm_frames))
+    if not detected:
+        return 0, False
+    next_count = min(int(current_count) + 1, required)
+    return next_count, next_count >= required
+
+
+def _has_target_in_trigger_fov(targets, fov_radius):
+    if not targets:
+        return False
+    radius = max(0.0, float(fov_radius))
+    if radius <= 0:
+        return True
+    for target in targets:
+        if len(target) < 3:
+            continue
+        try:
+            distance = float(target[2])
+        except Exception:
+            continue
+        if distance <= radius:
+            return True
+    return False
+
+
+def _reset_tracking_state(reset_burst=False):
+    with _triggerbot_state["burst_lock"]:
+        if reset_burst:
+            _triggerbot_state["burst_state"] = None
+            _triggerbot_state["activation_toggle_state"] = False
+            _triggerbot_state["activation_last_pressed"] = False
+        elif _triggerbot_state["burst_state"] == "bursting":
+            return
+        _triggerbot_state["enter_range_time"] = None
+        _triggerbot_state["random_delay"] = None
+        _triggerbot_state["confirm_count"] = 0
+
+
+def _resolve_activation_mode(primary_valid, secondary_valid, selected_tb_btn, selected_2_tb):
+    mode = str(getattr(config, "trigger_activation_type", "hold_enable")).strip().lower()
+    if mode not in {"hold_enable", "hold_disable", "toggle"}:
+        mode = "hold_enable"
+
+    if not primary_valid and not secondary_valid:
+        return False, False, "BUTTON_NOT_CONFIGURED"
+
+    pressed_primary = _safe_button_pressed(selected_tb_btn) if primary_valid else False
+    pressed_secondary = _safe_button_pressed(selected_2_tb) if secondary_valid else False
+    is_pressed = bool(pressed_primary or pressed_secondary)
+
+    if mode == "hold_enable":
+        active = is_pressed
+    elif mode == "hold_disable":
+        active = not is_pressed
+    else:  # toggle
+        last_pressed = bool(_triggerbot_state.get("activation_last_pressed", False))
+        toggle_state = bool(_triggerbot_state.get("activation_toggle_state", False))
+        if (not last_pressed) and is_pressed:
+            toggle_state = not toggle_state
+        _triggerbot_state["activation_toggle_state"] = toggle_state
+        active = toggle_state
+
+    _triggerbot_state["activation_last_pressed"] = is_pressed
+    return active, is_pressed, None
+
+
+def _execute_burst_sequence(
+    controller,
+    burst_count_min,
+    burst_count_max,
+    hold_min,
+    hold_max,
+    interval_min,
+    interval_max,
+):
+    burst_count = random.randint(int(burst_count_min), int(burst_count_max))
     with _triggerbot_state["burst_lock"]:
         _triggerbot_state["burst_state"] = "bursting"
-    
-    button_pressed = False  # 追蹤按鍵狀態
+
+    button_pressed = False
     try:
-        for i in range(burst_count):
-            # 從範圍中隨機選擇 hold 時間
-            random_hold = random.uniform(hold_min, hold_max)
-            
+        for shot_index in range(burst_count):
+            random_hold = random.uniform(float(hold_min), float(hold_max))
             try:
-                # 按下滑鼠按鈕
                 controller.press()
                 button_pressed = True
-                time.sleep(random_hold / 1000.0)  # 等待隨機 hold 時間（轉換為秒）
-            except Exception as e:
-                log_print(f"[Triggerbot press error] {e}")
+                time.sleep(max(0.0, random_hold) / 1000.0)
+            except Exception as exc:
+                log_print(f"[Triggerbot press error] {exc}")
             finally:
-                # 確保釋放滑鼠按鈕
                 try:
                     if button_pressed:
                         controller.release()
                         button_pressed = False
-                except Exception as e:
-                    log_print(f"[Triggerbot release error] {e}")
-            
-            # 如果不是最後一發，等待隨機 Interval 時間
-            if i < burst_count - 1:
+                except Exception as exc:
+                    log_print(f"[Triggerbot release error] {exc}")
+
+            if shot_index < burst_count - 1:
                 try:
-                    random_interval = random.uniform(interval_min, interval_max)
+                    random_interval = random.uniform(float(interval_min), float(interval_max))
                     if random_interval > 0:
                         time.sleep(random_interval / 1000.0)
-                except Exception as e:
-                    log_print(f"[Triggerbot interval error] {e}")
-    except Exception as e:
-        log_print(f"[Triggerbot burst sequence error] {e}")
+                except Exception as exc:
+                    log_print(f"[Triggerbot interval error] {exc}")
+    except Exception as exc:
+        log_print(f"[Triggerbot burst sequence error] {exc}")
     finally:
-        # 確保無論如何都釋放按鍵並重置狀態
         try:
             if button_pressed:
                 controller.release()
-        except Exception as e:
-            log_print(f"[Triggerbot final release error] {e}")
+        except Exception as exc:
+            log_print(f"[Triggerbot final release error] {exc}")
         with _triggerbot_state["burst_lock"]:
             _triggerbot_state["burst_state"] = None
             _triggerbot_state["burst_thread"] = None
 
 
-def process_triggerbot(frame, img, model, controller, tbdelay_min, tbdelay_max, 
-                      tbhold_min, tbhold_max, tbcooldown_min, tbcooldown_max,
-                      tbburst_count_min, tbburst_count_max, tbburst_interval_min, tbburst_interval_max):
-    """
-    處理 Triggerbot 邏輯（支持連發功能）
-    
-    Args:
-        frame: 視頻幀物件
-        img: BGR 圖像
-        model: 檢測模型（包含 HSV 範圍）
-        controller: 滑鼠控制器
-        tbdelay_min: Triggerbot 延遲最小值（秒）
-        tbdelay_max: Triggerbot 延遲最大值（秒）
-        tbhold_min: 按鍵保持時間最小值（毫秒）
-        tbhold_max: 按鍵保持時間最大值（毫秒）
-        tbcooldown_min: 冷卻時間最小值（秒）
-        tbcooldown_max: 冷卻時間最大值（秒）
-        tbburst_count_min: 連發次數最小值
-        tbburst_count_max: 連發次數最大值
-        tbburst_interval_min: 連發間隔最小值（毫秒）
-        tbburst_interval_max: 連發間隔最大值（毫秒）
-        
-    Returns:
-        str: 狀態信息（用於調試顯示）
-    """
+def process_triggerbot(
+    frame,
+    img,
+    model,
+    controller,
+    tbdelay_min,
+    tbdelay_max,
+    tbhold_min,
+    tbhold_max,
+    tbcooldown_min,
+    tbcooldown_max,
+    tbburst_count_min,
+    tbburst_count_max,
+    tbburst_interval_min,
+    tbburst_interval_max,
+    targets=None,
+):
     if not getattr(config, "enabletb", False):
+        _reset_tracking_state(reset_burst=True)
+        _close_trigger_debug_windows()
         return "DISABLED"
-    
-    # 檢查按鈕是否按下
+    if cv2 is None:
+        return "ERROR: OpenCV unavailable"
+
     selected_tb_btn = getattr(config, "selected_tb_btn", None)
     selected_2_tb = getattr(config, "selected_2_tb", None)
-    
-    if not (is_button_pressed(selected_tb_btn) or is_button_pressed(selected_2_tb)):
-        # 按鈕未按下，重置進入範圍計時器
+    primary_valid = _is_valid_button_index(selected_tb_btn)
+    secondary_valid = _is_valid_button_index(selected_2_tb)
+
+    activation_active, activation_pressed, activation_error = _resolve_activation_mode(
+        primary_valid, secondary_valid, selected_tb_btn, selected_2_tb
+    )
+    if activation_error is not None:
+        _reset_tracking_state(reset_burst=True)
+        _close_trigger_debug_windows()
+        return activation_error
+
+    if not activation_active:
         with _triggerbot_state["burst_lock"]:
             if _triggerbot_state["burst_state"] != "bursting":
                 _triggerbot_state["enter_range_time"] = None
+                _triggerbot_state["random_delay"] = None
+                _triggerbot_state["confirm_count"] = 0
                 _triggerbot_state["burst_state"] = None
-            # 如果正在連發中，確保釋放按鍵
-            elif _triggerbot_state["burst_state"] == "bursting":
+            else:
                 try:
                     controller.release()
-                except Exception as e:
-                    log_print(f"[Triggerbot button release error] {e}")
+                except Exception as exc:
+                    log_print(f"[Triggerbot button release error] {exc}")
+        mode = str(getattr(config, "trigger_activation_type", "hold_enable")).strip().lower()
+        _close_trigger_debug_windows()
+        if mode == "toggle":
+            return "TOGGLE_OFF"
+        if mode == "hold_disable":
+            return "BUTTON_HELD_DISABLED"
         return "BUTTON_NOT_PRESSED"
-    
+
     try:
-        # 螢幕中心
         cx0, cy0 = int(frame.xres // 2), int(frame.yres // 2)
-        ROI_SIZE = 5  # 中心周圍的小正方形
-        
-        x1, y1 = max(cx0 - ROI_SIZE, 0), max(cy0 - ROI_SIZE, 0)
-        x2, y2 = min(cx0 + ROI_SIZE, img.shape[1]), min(cy0 + ROI_SIZE, img.shape[0])
+        tb_fov = float(getattr(config, "tbfovsize", 0))
+        if not _has_target_in_trigger_fov(targets, tb_fov):
+            with _triggerbot_state["burst_lock"]:
+                if _triggerbot_state["burst_state"] != "bursting":
+                    _triggerbot_state["enter_range_time"] = None
+                    _triggerbot_state["random_delay"] = None
+                    _triggerbot_state["burst_state"] = None
+                _triggerbot_state["confirm_count"] = 0
+            _close_trigger_debug_windows()
+            return "OUT_OF_FOV"
+
+        # Use Trigger FOV as the only ROI scale source.
+        roi_size = max(1, int(tb_fov)) if tb_fov > 0 else 8
+        x1, y1 = max(cx0 - roi_size, 0), max(cy0 - roi_size, 0)
+        x2, y2 = min(cx0 + roi_size, img.shape[1]), min(cy0 + roi_size, img.shape[0])
         roi = img[y1:y2, x1:x2]
-        
         if roi.size == 0:
-            return "INVALID_ROI"  # 安全檢查
-        
-        # 轉換為 HSV
+            _close_trigger_debug_windows()
+            return "INVALID_ROI"
+
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-        
-        # HSV 範圍（從模型獲取）
-        HSV_UPPER = model[1]
-        HSV_LOWER = model[0]
-        
-        mask = cv2.inRange(hsv, HSV_LOWER, HSV_UPPER)
-        detected = cv2.countNonZero(mask) > 0
-        
-        # 調試顯示（根據設置）
-        if (getattr(config, "show_opencv_windows", True) and 
-            getattr(config, "show_opencv_roi", True)):
+        hsv_upper = model[1]
+        hsv_lower = model[0]
+        mask = cv2.inRange(hsv, hsv_lower, hsv_upper)
+
+        pixel_count = int(cv2.countNonZero(mask))
+        roi_area = int(mask.shape[0] * mask.shape[1])
+        min_pixels = max(1, int(getattr(config, "trigger_min_pixels", 4)))
+        min_ratio = max(0.0, float(getattr(config, "trigger_min_ratio", 0.03)))
+        confirm_frames = max(1, int(getattr(config, "trigger_confirm_frames", 2)))
+        detected, ratio = evaluate_trigger_metrics(pixel_count, roi_area, min_pixels, min_ratio)
+
+        show_windows = bool(getattr(config, "show_opencv_windows", True))
+        show_roi = bool(getattr(config, "show_opencv_roi", True))
+        show_mask = bool(getattr(config, "show_opencv_triggerbot_mask", True))
+        shown_any = False
+        if show_windows and show_roi:
             cv2.imshow("ROI", roi)
-            cv2.waitKey(1)
-        
-        if (getattr(config, "show_opencv_windows", True) and 
-            getattr(config, "show_opencv_triggerbot_mask", True)):
+            shown_any = True
+        else:
+            _safe_destroy_window("ROI")
+        if show_windows and show_mask:
             cv2.imshow("Mask", mask)
+            shown_any = True
+        else:
+            _safe_destroy_window("Mask")
+        if shown_any:
             cv2.waitKey(1)
-        
+
         now = time.time()
-        
-        # 如果未檢測到目標顏色，重置進入範圍計時器
+
         if not detected:
             with _triggerbot_state["burst_lock"]:
                 if _triggerbot_state["burst_state"] != "bursting":
                     _triggerbot_state["enter_range_time"] = None
                     _triggerbot_state["random_delay"] = None
                     _triggerbot_state["burst_state"] = None
+                _triggerbot_state["confirm_count"] = 0
             return "NO_TARGET"
-        
-        # 檢測到目標顏色
-        cv2.putText(img, "TARGET DETECTED", (10, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        
+
+        with _triggerbot_state["burst_lock"]:
+            confirm_count, is_confirmed = update_confirm_counter(
+                _triggerbot_state.get("confirm_count", 0),
+                detected,
+                confirm_frames,
+            )
+            _triggerbot_state["confirm_count"] = confirm_count
+
+        if not is_confirmed:
+            return f"CONFIRMING ({confirm_count}/{confirm_frames})"
+
+        cv2.putText(
+            img,
+            f"TARGET DETECTED px:{pixel_count} r:{ratio:.3f}",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 0, 255),
+            2,
+        )
+
         with _triggerbot_state["burst_lock"]:
             current_state = _triggerbot_state["burst_state"]
             enter_time = _triggerbot_state["enter_range_time"]
             last_trigger = _triggerbot_state["last_trigger_time"]
             random_delay = _triggerbot_state.get("random_delay")
-        
-        # 【Cooldown 檢查】- 使用上次觸發時選擇的 cooldown 值
-        current_cooldown = _triggerbot_state.get("current_cooldown", 0.0)
-        if tbcooldown_max > 0 and current_cooldown > 0:
+
+        current_cooldown = float(_triggerbot_state.get("current_cooldown", 0.0))
+        if float(tbcooldown_max) > 0 and current_cooldown > 0:
             if (now - last_trigger) < current_cooldown:
                 remaining = current_cooldown - (now - last_trigger)
                 return f"COOLDOWN ({remaining:.2f}s)"
-        
-        # 如果正在連發中，不處理
+
         if current_state == "bursting":
             return "BURSTING"
-        
-        # 【Delay 等待】- 第一次進入範圍時，開始計時並固定 delay 值
+
         if enter_time is None:
-            # 計算隨機延遲（在第一次進入時固定）
-            random_delay = random.uniform(tbdelay_min, tbdelay_max)
+            random_delay = random.uniform(float(tbdelay_min), float(tbdelay_max))
             with _triggerbot_state["burst_lock"]:
                 _triggerbot_state["enter_range_time"] = now
                 _triggerbot_state["random_delay"] = random_delay
                 _triggerbot_state["burst_state"] = "waiting"
             enter_time = now
-        else:
-            # 使用已經固定的 delay 值
-            if random_delay is None:
-                random_delay = random.uniform(tbdelay_min, tbdelay_max)
-                with _triggerbot_state["burst_lock"]:
-                    _triggerbot_state["random_delay"] = random_delay
-        
-        elapsed = now - enter_time
-        
-        # 如果 delay 為 0 或已經過了，直接觸發（避免線程開銷）
-        if random_delay <= 0 or elapsed >= random_delay:
-            # 單發模式且 delay 為 0，直接執行（避免線程開銷）
-            if tbburst_count_min == 1 and tbburst_count_max == 1 and random_delay <= 0:
-                try:
-                    random_hold = random.uniform(tbhold_min, tbhold_max)
-                    controller.press()
-                    time.sleep(random_hold / 1000.0)
-                    controller.release()
-                except Exception as e:
-                    log_print(f"[Triggerbot direct error] {e}")
-                
-                # 更新狀態
-                with _triggerbot_state["burst_lock"]:
-                    _triggerbot_state["last_trigger_time"] = now
-                    _triggerbot_state["enter_range_time"] = None
-                    _triggerbot_state["random_delay"] = None
-                    if tbcooldown_max > 0:
-                        _triggerbot_state["current_cooldown"] = random.uniform(tbcooldown_min, tbcooldown_max)
-                    else:
-                        _triggerbot_state["current_cooldown"] = 0.0
-                return "TRIGGERED"
-            
-            # 【連發射擊】- Delay 時間已到，開始執行連發序列
+        elif random_delay is None:
+            random_delay = random.uniform(float(tbdelay_min), float(tbdelay_max))
             with _triggerbot_state["burst_lock"]:
-                # 檢查是否已經有連發線程在運行
-                if _triggerbot_state["burst_thread"] is not None and _triggerbot_state["burst_thread"].is_alive():
+                _triggerbot_state["random_delay"] = random_delay
+
+        elapsed = now - enter_time
+        if random_delay <= 0 or elapsed >= random_delay:
+            with _triggerbot_state["burst_lock"]:
+                if (
+                    _triggerbot_state["burst_thread"] is not None
+                    and _triggerbot_state["burst_thread"].is_alive()
+                ):
                     return "BURST_IN_PROGRESS"
-                
-                # 創建新的連發線程
+
                 burst_thread = threading.Thread(
                     target=_execute_burst_sequence,
-                    args=(controller, tbburst_count_min, tbburst_count_max, tbhold_min, tbhold_max, 
-                          tbburst_interval_min, tbburst_interval_max),
-                    daemon=True
+                    args=(
+                        controller,
+                        tbburst_count_min,
+                        tbburst_count_max,
+                        tbhold_min,
+                        tbhold_max,
+                        tbburst_interval_min,
+                        tbburst_interval_max,
+                    ),
+                    daemon=True,
                 )
                 _triggerbot_state["burst_thread"] = burst_thread
                 _triggerbot_state["burst_state"] = "bursting"
                 _triggerbot_state["last_trigger_time"] = now
-                _triggerbot_state["enter_range_time"] = None  # 重置進入範圍計時器
-                _triggerbot_state["random_delay"] = None  # 重置延遲值
-                # 為下次觸發從範圍中隨機選擇新的 cooldown 值
-                if tbcooldown_max > 0:
-                    _triggerbot_state["current_cooldown"] = random.uniform(tbcooldown_min, tbcooldown_max)
+                _triggerbot_state["enter_range_time"] = None
+                _triggerbot_state["random_delay"] = None
+                _triggerbot_state["confirm_count"] = 0
+                if float(tbcooldown_max) > 0:
+                    _triggerbot_state["current_cooldown"] = random.uniform(
+                        float(tbcooldown_min), float(tbcooldown_max)
+                    )
                 else:
                     _triggerbot_state["current_cooldown"] = 0.0
-            
-            # 啟動連發線程
+
             burst_thread.start()
-            
             return f"BURST_STARTED ({tbburst_count_min}-{tbburst_count_max} shots)"
-        else:
-            # Delay 時間未到
-            return f"WAITING ({elapsed:.3f}s/{random_delay:.3f}s)"
-        
-    except Exception as e:
-        log_print("[Triggerbot error]", e)
-        return f"ERROR: {str(e)}"
+
+        return f"WAITING ({elapsed:.3f}s/{random_delay:.3f}s)"
+    except Exception as exc:
+        log_print("[Triggerbot error]", exc)
+        return f"ERROR: {str(exc)}"

@@ -51,8 +51,13 @@ class UpdateChecker:
         try:
             config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.json")
             if os.path.exists(config_path):
+                if os.path.getsize(config_path) == 0:
+                    return
                 with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
+                    try:
+                        config = json.load(f)
+                    except json.JSONDecodeError:
+                        return
                     self.update_skipped_version = config.get("update_skipped_version", None)
                     self.never_update = config.get("never_update", False)
         except Exception as e:
@@ -64,8 +69,12 @@ class UpdateChecker:
             config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.json")
             config = {}
             if os.path.exists(config_path):
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
+                if os.path.getsize(config_path) > 0:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        try:
+                            config = json.load(f)
+                        except json.JSONDecodeError:
+                            config = {}
             
             config["update_skipped_version"] = self.update_skipped_version
             config["never_update"] = self.never_update

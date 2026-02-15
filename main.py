@@ -1,4 +1,4 @@
-import threading
+﻿import threading
 import queue
 import time
 import math
@@ -8,9 +8,9 @@ import ctypes
 import sys
 import os
 
-# 設置 AppUserModelID 以便在 Windows 任務欄正確顯示圖標
+# 瑷疆 AppUserModelID 浠ヤ究鍦?Windows 浠诲嫏娆勬纰洪’绀哄湒妯?
 try:
-    myappid = 'mycompany.colorbot.v2.0' # 任意唯一的字符串
+    myappid = 'mycompany.colorbot.v2.0' # 浠绘剰鍞竴鐨勫瓧绗︿覆
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except Exception:
     pass
@@ -21,31 +21,29 @@ from src.utils.detection import load_model, perform_detection
 from src.capture.capture_service import CaptureService
 from src.aim_system.normal import process_normal_mode
 from src.aim_system.anti_smoke_detector import AntiSmokeDetector
+from src.aim_system.target_smoother import TargetSmoother
 
 class FrameInfo:
-    """簡單的幀信息類，用於兼容現有代碼"""
+    """绨″柈鐨勫箑淇℃伅椤烇紝鐢ㄦ柤鍏煎鐝炬湁浠ｇ⒓"""
     def __init__(self, width, height):
         self.xres = width
         self.yres = height
 
 class AimTracker:
     """
-    目標追蹤器類
+    鐩杩借工鍣ㄩ
     
-    負責處理視頻幀的捕獲、目標檢測、瞄準計算和滑鼠移動控制。
-    支持多種模式（Normal、Silent）和配置選項。
-    """
+    璨犺铂铏曠悊瑕栭牷骞€鐨勬崟鐛层€佺洰妯欐娓€佺瀯婧栬▓绠楀拰婊戦紶绉诲嫊鎺у埗銆?    鏀寔澶氱ó妯″紡锛圢ormal銆丼ilent锛夊拰閰嶇疆閬搁爡銆?    """
     
     RAW_STREAM_NDI_WINDOW = "NDI Raw Stream"
     RAW_STREAM_UDP_WINDOW = "UDP Raw Stream"
 
     def __init__(self, app, target_fps=80):
         """
-        初始化 AimTracker
+        鍒濆鍖?AimTracker
         
         Args:
-            app: 應用程式實例，需要包含 capture 屬性（CaptureService）
-            target_fps: 目標幀率，默認為 80 FPS
+            app: 鎳夌敤绋嬪紡瀵︿緥锛岄渶瑕佸寘鍚?capture 灞€э紙CaptureService锛?            target_fps: 鐩骞€鐜囷紝榛樿獚鐐?80 FPS
         """
         self.app = app
         # --- Params (avec valeurs fallback) ---
@@ -62,32 +60,34 @@ class AimTracker:
         # Triggerbot hold range
         self.tbhold_min = float(getattr(config, "tbhold_min", 40))
         self.tbhold_max = float(getattr(config, "tbhold_max", 60))
-        # Triggerbot 連發設置（範圍）
+        # Triggerbot 閫ｇ櫦瑷疆锛堢瘎鍦嶏級
         self.tbcooldown_min = float(getattr(config, "tbcooldown_min", 0.0))
         self.tbcooldown_max = float(getattr(config, "tbcooldown_max", 0.0))
         self.tbburst_count_min = int(getattr(config, "tbburst_count_min", 1))
         self.tbburst_count_max = int(getattr(config, "tbburst_count_max", 1))
         self.tbburst_interval_min = float(getattr(config, "tbburst_interval_min", 0.0))
         self.tbburst_interval_max = float(getattr(config, "tbburst_interval_max", 0.0))
-        # 注意：last_tb_click_time 現在由 Triggerbot.py 中的全局狀態管理
-        
-        # RCS (Recoil Control System) 設置
+        self.trigger_roi_size = int(getattr(config, "trigger_roi_size", 8))
+        self.trigger_min_pixels = int(getattr(config, "trigger_min_pixels", 4))
+        self.trigger_min_ratio = float(getattr(config, "trigger_min_ratio", 0.03))
+        self.trigger_confirm_frames = int(getattr(config, "trigger_confirm_frames", 2))
+        # 娉ㄦ剰锛歭ast_tb_click_time 鐝惧湪鐢?Triggerbot.py 涓殑鍏ㄥ眬鐙€鎱嬬鐞?        
+        # RCS (Recoil Control System) 瑷疆
         self.rcs_pull_speed = int(getattr(config, "rcs_pull_speed", 10))
         self.rcs_activation_delay = int(getattr(config, "rcs_activation_delay", 100))
         self.rcs_rapid_click_threshold = int(getattr(config, "rcs_rapid_click_threshold", 200))
         
-        # Silent Mode 設置
+        # Silent Mode 瑷疆
         self.silent_distance = float(getattr(config, "silent_distance", 1.0))
         self.silent_delay = float(getattr(config, "silent_delay", 100.0))
         self.silent_move_delay = float(getattr(config, "silent_move_delay", 500.0))
         self.silent_return_delay = float(getattr(config, "silent_return_delay", 500.0))
-        self.last_silent_click_time = 0  # 用於追蹤最後一次開槍時間
-
+        self.last_silent_click_time = 0  # 鐢ㄦ柤杩借工鏈€寰屼竴娆￠枊妲嶆檪闁?
         self.in_game_sens = float(getattr(config, "in_game_sens", 0.235))
         self.color = getattr(config, "color", "yellow")
         self.mode = getattr(config, "mode", "Normal")
         self.mode_sec = getattr(config, "mode_sec", "Normal")
-        self.selected_mouse_button = getattr(config, "selected_mouse_button", 3),
+        self.selected_mouse_button = getattr(config, "selected_mouse_button", 3)
         self.selected_tb_btn= getattr(config, "selected_tb_btn", 3)
         self.max_speed = float(getattr(config, "max_speed", 1000.0))
 
@@ -110,60 +110,104 @@ class AimTracker:
         self.aim_type_sec = getattr(config, "aim_type_sec", "head")
 
         self.controller = Mouse()
+        self._stop_event = threading.Event()
+        self._raw_stream_window_visible = {
+            self.RAW_STREAM_NDI_WINDOW: False,
+            self.RAW_STREAM_UDP_WINDOW: False,
+        }
         self.move_queue = queue.Queue(maxsize=50)
+        self._move_batch_size = 4
+        self._move_batch_small_step = 3.0
         self._move_thread = threading.Thread(target=self._process_move_queue, daemon=True)
         self._move_thread.start()
 
         self.model, self.class_names = load_model()
         print("Classes:", self.class_names)
-        self._stop_event = threading.Event()
         self._target_fps = target_fps
         self._track_thread = threading.Thread(target=self._track_loop, daemon=True)
         self._track_thread.start()
         
-        # 幀計數器（用於調試）
+        # 骞€瑷堟暩鍣紙鐢ㄦ柤瑾胯│锛?
         self._frame_count = 0
         self._last_frame_log_time = time.time()
         
-        # --- Anti-Smoke Detector 初始化 ---
+        # --- Anti-Smoke Detector 鍒濆鍖?---
         self.anti_smoke_detector = AntiSmokeDetector()
         self.anti_smoke_detector.set_enabled(getattr(config, "anti_smoke_enabled", False))
         
         self.anti_smoke_detector_sec = AntiSmokeDetector()
         self.anti_smoke_detector_sec.set_enabled(getattr(config, "anti_smoke_enabled_sec", False))
         
+        self.ema_alpha = float(getattr(config, "ema_alpha", 0.35))
+        self.switch_confirm_frames = int(getattr(config, "switch_confirm_frames", 3))
+        self._target_smoother = TargetSmoother(
+            ema_alpha=self.ema_alpha,
+            switch_confirm_frames=self.switch_confirm_frames,
+        )
+        self.last_target = None
+        self.stable_candidate = None
+        self.stable_count = 0
+        
 
     def stop(self):
         """
-        停止追蹤器
-        
-        設置停止事件並等待追蹤線程結束，用於清理資源。
-        """
+        鍋滄杩借工鍣?        
+        瑷疆鍋滄浜嬩欢涓︾瓑寰呰拷韫ょ窔绋嬬祼鏉燂紝鐢ㄦ柤娓呯悊璩囨簮銆?        """
         self._stop_event.set()
         try:
             self._track_thread.join(timeout=1.0)
+        except Exception:
+            pass
+        try:
+            self._move_thread.join(timeout=1.0)
         except Exception:
             pass
         self._close_raw_stream_windows()
 
     def _process_move_queue(self):
         """
-        處理移動隊列
+        铏曠悊绉诲嫊闅婂垪
         
-        在後台線程中持續從移動隊列中獲取移動指令並執行。
-        支持延遲控制，確保移動操作的平滑執行。
-        
-        這是一個無限循環，直到線程被終止。
-        """
-        while True:
+        鍦ㄥ緦鍙扮窔绋嬩腑鎸佺簩寰炵Щ鍕曢殜鍒椾腑鐛插彇绉诲嫊鎸囦护涓﹀煼琛屻€?        鏀寔寤堕伈鎺у埗锛岀⒑淇濈Щ鍕曟搷浣滅殑骞虫粦鍩疯銆?        
+        閫欐槸涓€鍊嬬劇闄愬惊鐠帮紝鐩村埌绶氱▼琚祩姝€?        """
+        while not self._stop_event.is_set() or not self.move_queue.empty():
             try:
                 dx, dy, delay = self.move_queue.get(timeout=0.1)
+                latest_only = bool(getattr(config, "aim_latest_frame_priority", True))
+                if latest_only:
+                    # Keep only the newest N commands, then merge them.
+                    # This preserves immediate latest-frame behavior while avoiding
+                    # dropped Bezier/WindMouse sub-steps that cause jitter.
+                    pending = [(dx, dy, delay)]
+                    while True:
+                        try:
+                            pending.append(self.move_queue.get_nowait())
+                        except queue.Empty:
+                            break
+                    max_batch = max(
+                        1,
+                        int(getattr(config, "move_queue_merge_batch", self._move_batch_size)),
+                    )
+                    if len(pending) > max_batch:
+                        pending = pending[-max_batch:]
+                    merged_dx = float(sum(float(item[0]) for item in pending))
+                    merged_dy = float(sum(float(item[1]) for item in pending))
+                    merged_delay = min(
+                        (max(0.0, float(item[2])) for item in pending),
+                        default=0.0,
+                    )
+                else:
+                    merged_dx = float(dx)
+                    merged_dy = float(dy)
+                    merged_delay = float(delay) if delay else 0.0
+
                 try:
-                    self.controller.move(dx, dy)
+                    if merged_dx != 0.0 or merged_dy != 0.0:
+                        self.controller.move(merged_dx, merged_dy)
                 except Exception as e:
                     print("[Mouse.move error]", e)
-                if delay and delay > 0:
-                    time.sleep(delay)
+                if merged_delay > 0:
+                    time.sleep(merged_delay)
             except queue.Empty:
                 time.sleep(0.001)
                 continue
@@ -173,16 +217,13 @@ class AimTracker:
 
     def _clip_movement(self, dx, dy):
         """
-        限制移動速度
+        闄愬埗绉诲嫊閫熷害
         
-        將移動距離限制在最大速度範圍內，防止移動過快。
-        
+        灏囩Щ鍕曡窛闆㈤檺鍒跺湪鏈€澶ч€熷害绡勫湇鍏э紝闃叉绉诲嫊閬庡揩銆?        
         Args:
-            dx: X 方向的移動距離
-            dy: Y 方向的移動距離
-            
+            dx: X 鏂瑰悜鐨勭Щ鍕曡窛闆?            dy: Y 鏂瑰悜鐨勭Щ鍕曡窛闆?            
         Returns:
-            tuple: (clipped_dx, clipped_dy) 限制後的移動距離
+            tuple: (clipped_dx, clipped_dy) 闄愬埗寰岀殑绉诲嫊璺濋洟
         """
         clipped_dx = np.clip(dx, -abs(self.max_speed), abs(self.max_speed))
         clipped_dy = np.clip(dy, -abs(self.max_speed), abs(self.max_speed))
@@ -190,11 +231,8 @@ class AimTracker:
 
     def _track_loop(self):
         """
-        主追蹤循環
-        
-        在後台線程中持續執行追蹤操作，控制幀率以達到目標 FPS。
-        每次循環調用 track_once() 進行一次完整的追蹤處理。
-        """
+        涓昏拷韫ゅ惊鐠?        
+        鍦ㄥ緦鍙扮窔绋嬩腑鎸佺簩鍩疯杩借工鎿嶄綔锛屾帶鍒跺箑鐜囦互閬斿埌鐩 FPS銆?        姣忔寰挵瑾跨敤 track_once() 閫茶涓€娆″畬鏁寸殑杩借工铏曠悊銆?        """
         while not self._stop_event.is_set():
             period = 1.0 / float(self._target_fps)
             start = time.time()
@@ -222,11 +260,10 @@ class AimTracker:
     
     def _handle_button_mask(self):
         """
-        處理按鈕遮罩邏輯
+        铏曠悊鎸夐垥閬僵閭忚集
         
-        根據配置決定是否鎖定特定的滑鼠按鈕，防止在瞄準時誤觸。
-        """
-        # 如果未啟用 Button Mask，解鎖所有按鈕
+        鏍规摎閰嶇疆姹哄畾鏄惁閹栧畾鐗瑰畾鐨勬粦榧犳寜閳曪紝闃叉鍦ㄧ瀯婧栨檪瑾よЦ銆?        """
+        # 濡傛灉鏈暉鐢?Button Mask锛岃В閹栨墍鏈夋寜閳?
         if not getattr(config, "button_mask_enabled", False):
             try:
                 from src.utils.mouse import unlock_all_locks
@@ -235,7 +272,7 @@ class AimTracker:
                 pass
             return
         
-        # 檢查是否有任何 aimbot 正在運行
+        # 妾㈡煡鏄惁鏈変换浣?aimbot 姝ｅ湪閬嬭
         aimbot_running = (
             getattr(config, "enableaim", False) or 
             getattr(config, "enableaim_sec", False) or 
@@ -250,7 +287,7 @@ class AimTracker:
                 pass
             return
         
-        # 構建需要遮罩的按鈕集合
+        # 妲嬪缓闇€瑕侀伄缃╃殑鎸夐垥闆嗗悎
         mask_set = set()
         
         button_mapping = {
@@ -265,26 +302,26 @@ class AimTracker:
             if getattr(config, config_key, False):
                 mask_set.add(button_idx)
         
-        # 應用遮罩
+        # 鎳夌敤閬僵
         try:
             from src.utils.mouse import lock_button_idx, unlock_button_idx, is_connected
             
             if not is_connected:
                 return
             
-            # 追踪當前已鎖定的按鈕
+            # 杩借釜鐣跺墠宸查帠瀹氱殑鎸夐垥
             if not hasattr(self, '_current_masked_buttons'):
                 self._current_masked_buttons = set()
             
-            # 解鎖不再需要遮罩的按鈕
+            # 瑙ｉ帠涓嶅啀闇€瑕侀伄缃╃殑鎸夐垥
             for idx in list(self._current_masked_buttons - mask_set):
                 unlock_button_idx(idx)
             
-            # 鎖定新需要遮罩的按鈕
+            # 閹栧畾鏂伴渶瑕侀伄缃╃殑鎸夐垥
             for idx in list(mask_set - self._current_masked_buttons):
                 lock_button_idx(idx)
             
-            # 更新當前狀態
+            # 鏇存柊鐣跺墠鐙€鎱?
             self._current_masked_buttons = mask_set
             
         except Exception as e:
@@ -292,25 +329,23 @@ class AimTracker:
 
     def _draw_fovs(self, img, frame):
         """
-        繪製 FOV（視野範圍）圓圈
+        绻＝ FOV锛堣閲庣瘎鍦嶏級鍦撳湀
         
-        在圖像上繪製 Aimbot 和 Triggerbot 的 FOV 範圍圓圈，
-        用於視覺化顯示瞄準和觸發區域。
-        
+        鍦ㄥ湒鍍忎笂绻＝ Aimbot 鍜?Triggerbot 鐨?FOV 绡勫湇鍦撳湀锛?        鐢ㄦ柤瑕栬鍖栭’绀虹瀯婧栧拰瑙哥櫦鍗€鍩熴€?        
         Args:
-            img: BGR 圖像陣列
-            frame: 視頻幀物件，包含解析度信息
+            img: BGR 鍦栧儚闄ｅ垪
+            frame: 瑕栭牷骞€鐗╀欢锛屽寘鍚В鏋愬害淇℃伅
         """
         center_x = int(frame.xres / 2)
         center_y = int(frame.yres / 2)
         if getattr(config, "enableaim", False):
             mode_main = getattr(config, "mode", "Normal")
-            # 在 NCAF 下不畫原本 FOV 圓，只顯示 NCAF 半徑
+            # 鍦?NCAF 涓嬩笉鐣師鏈?FOV 鍦擄紝鍙’绀?NCAF 鍗婂緫
             if mode_main != "NCAF":
                 cv2.circle(img, (center_x, center_y), int(getattr(config, "fovsize", self.fovsize)), (255, 255, 255), 2)
                 # Correct: cercle smoothing = normalsmoothFOV
                 cv2.circle(img, (center_x, center_y), int(getattr(config, "normalsmoothfov", self.normalsmoothfov)), (51, 255, 255), 2)
-            # NCAF Radius 圈 (Main)
+            # NCAF Radius 鍦?(Main)
             if mode_main == "NCAF":
                 snap_r = int(getattr(config, "ncaf_snap_radius", 150))
                 near_r = int(getattr(config, "ncaf_near_radius", 50))
@@ -329,16 +364,20 @@ class AimTracker:
         try:
             if show_ndi:
                 cv2.imshow(self.RAW_STREAM_NDI_WINDOW, raw_img)
-            else:
+                self._raw_stream_window_visible[self.RAW_STREAM_NDI_WINDOW] = True
+            elif self._raw_stream_window_visible.get(self.RAW_STREAM_NDI_WINDOW, False):
                 cv2.destroyWindow(self.RAW_STREAM_NDI_WINDOW)
+                self._raw_stream_window_visible[self.RAW_STREAM_NDI_WINDOW] = False
         except Exception:
             pass
 
         try:
             if show_udp:
                 cv2.imshow(self.RAW_STREAM_UDP_WINDOW, raw_img)
-            else:
+                self._raw_stream_window_visible[self.RAW_STREAM_UDP_WINDOW] = True
+            elif self._raw_stream_window_visible.get(self.RAW_STREAM_UDP_WINDOW, False):
                 cv2.destroyWindow(self.RAW_STREAM_UDP_WINDOW)
+                self._raw_stream_window_visible[self.RAW_STREAM_UDP_WINDOW] = False
         except Exception:
             pass
 
@@ -351,48 +390,48 @@ class AimTracker:
     def _close_raw_stream_windows(self):
         """Close raw-stream windows."""
         try:
-            cv2.destroyWindow(self.RAW_STREAM_NDI_WINDOW)
+            if self._raw_stream_window_visible.get(self.RAW_STREAM_NDI_WINDOW, False):
+                cv2.destroyWindow(self.RAW_STREAM_NDI_WINDOW)
+                self._raw_stream_window_visible[self.RAW_STREAM_NDI_WINDOW] = False
         except Exception:
             pass
         try:
-            cv2.destroyWindow(self.RAW_STREAM_UDP_WINDOW)
+            if self._raw_stream_window_visible.get(self.RAW_STREAM_UDP_WINDOW, False):
+                cv2.destroyWindow(self.RAW_STREAM_UDP_WINDOW)
+                self._raw_stream_window_visible[self.RAW_STREAM_UDP_WINDOW] = False
         except Exception:
             pass
 
     def track_once(self):
         """
-        執行一次完整的追蹤處理
+        鍩疯涓€娆″畬鏁寸殑杩借工铏曠悊
         
-        這是追蹤器的核心方法，執行以下步驟：
-        1. 檢查連接狀態
-        2. 處理 Button Mask
-        3. 捕獲當前視頻幀
-        4. 執行目標檢測
-        5. 處理檢測結果並估算頭部位置
-        6. 繪製 FOV 和目標標記
-        7. 執行瞄準和移動邏輯
-        8. 顯示檢測結果窗口
+        閫欐槸杩借工鍣ㄧ殑鏍稿績鏂规硶锛屽煼琛屼互涓嬫椹燂細
+        1. 妾㈡煡閫ｆ帴鐙€鎱?        2. 铏曠悊 Button Mask
+        3. 鎹曠嵅鐣跺墠瑕栭牷骞€
+        4. 鍩疯鐩妾㈡脯
+        5. 铏曠悊妾㈡脯绲愭灉涓︿及绠楅牠閮ㄤ綅缃?        6. 绻＝ FOV 鍜岀洰妯欐瑷?        7. 鍩疯鐬勬簴鍜岀Щ鍕曢倧杓?        8. 椤ず妾㈡脯绲愭灉绐楀彛
         """
         if not self.app.capture.is_connected():
             self._close_raw_stream_windows()
             return
 
-        # Button Mask 管理
+        # Button Mask 绠＄悊
         self._handle_button_mask()
         
-        # Mouse Lock 管理器 tick
+        # Mouse Lock 绠＄悊鍣?tick
         try:
             from src.utils.mouse import tick_movement_lock_manager
             tick_movement_lock_manager()
         except Exception:
             pass
 
-        # 使用 CaptureService 讀取 BGR 幀
+        # 浣跨敤 CaptureService 璁€鍙?BGR 骞€
         raw_bgr_img = self.app.capture.read_frame(apply_fov=False)
         if raw_bgr_img is None:
             return
 
-        # 確保圖像是連續且可寫的數組，以避免 OpenCV 錯誤
+        # 纰轰繚鍦栧儚鏄€ｇ簩涓斿彲瀵殑鏁哥祫锛屼互閬垮厤 OpenCV 閷
         if not raw_bgr_img.flags['C_CONTIGUOUS']:
             raw_bgr_img = np.ascontiguousarray(raw_bgr_img)
 
@@ -404,19 +443,19 @@ class AimTracker:
         if not bgr_img.flags['C_CONTIGUOUS']:
             bgr_img = np.ascontiguousarray(bgr_img)
 
-        # 幀計數（供 UI 讀取，不再反覆打印）
+        # 骞€瑷堟暩锛堜緵 UI 璁€鍙栵紝涓嶅啀鍙嶈鎵撳嵃锛?
         self._frame_count += 1
         current_time = time.time()
         if current_time - self._last_frame_log_time >= 5.0:
             self._frame_count = 0
             self._last_frame_log_time = current_time
         
-        # 驗證幀的有效性
+        # 椹楄瓑骞€鐨勬湁鏁堟€?
         if bgr_img.size == 0:
             print("[Track] Empty frame received")
             return
 
-        # 創建虛擬幀對象以兼容舊代碼
+        # 鍓靛缓铏涙摤骞€灏嶈薄浠ュ吋瀹硅垔浠ｇ⒓
         h, w = bgr_img.shape[:2]
         if w == 0 or h == 0: 
             print(f"[Track] Invalid frame dimensions: {w}x{h}")
@@ -425,7 +464,7 @@ class AimTracker:
 
         try:
             detection_results, mask = perform_detection(self.model, bgr_img)
-            # 顯示 MASK 視窗（如果啟用）
+            # 椤ず MASK 瑕栫獥锛堝鏋滃暉鐢級
             if (getattr(config, "show_opencv_windows", True) and 
                 getattr(config, "show_opencv_mask", True) and 
                 mask is not None):
@@ -434,7 +473,8 @@ class AimTracker:
         except Exception as e:
             print("[perform_detection error]", e)
             detection_results = []
-            # 即使檢測失敗，也顯示原始圖像（如果啟用）
+            mask = None
+            # 鍗充娇妾㈡脯澶辨晽锛屼篃椤ず鍘熷鍦栧儚锛堝鏋滃暉鐢級
             if (getattr(config, "show_opencv_windows", True) and 
                 getattr(config, "show_opencv_detection", True)):
                 try:
@@ -445,52 +485,70 @@ class AimTracker:
 
         targets = []
         if detection_results:
-            # 獲取當前 aim_type（Main Aimbot）
+            # 鐛插彇鐣跺墠 aim_type锛圡ain Aimbot锛?
             aim_type = getattr(config, "aim_type", "head")
+            frame_area = max(1, int(frame.xres) * int(frame.yres))
+            dynamic_min_area = int(
+                getattr(
+                    config,
+                    "min_detection_bbox_area",
+                    max(120, int(frame_area * 0.0015)),
+                )
+            )
+            if str(getattr(config, "detection_morph_mode", "legacy")).strip().lower() != "stable":
+                dynamic_min_area = min(dynamic_min_area, max(40, int(frame_area * 0.00035)))
             
             for det in detection_results:
                 try:
                     x, y, w, h = det['bbox']
                     conf = det.get('confidence', 1.0)
+                    if int(w) <= 0 or int(h) <= 0:
+                        continue
+                    # Ignore tiny blobs to reduce per-frame target flicker.
+                    if int(w) * int(h) < dynamic_min_area:
+                        continue
                     x1, y1 = int(x), int(y)
                     x2, y2 = int(x + w), int(y + h)
-                    y1 *= 1.03
                     # Dessin corps
                     self._draw_body(bgr_img, x1, y1, x2, y2, conf)
                     
-                    # 計算 body 的中心點和 Y 範圍
+                    # 瑷堢畻 body 鐨勪腑蹇冮粸鍜?Y 绡勫湇
                     body_cx = (x1 + x2) / 2.0
                     body_cy = (y1 + y2) / 2.0
-                    body_y_min = y1  # body 的 Y 軸最高值（圖像座標系中 y 越小越靠上）
-                    body_y_max = y2  # body 的 Y 軸最低值
-                    
-                    # Estimation têtes dans la bbox
-                    head_positions = self._estimate_head_positions(x1, y1, x2, y2, bgr_img)
+                    body_y_min = y1  # body 鐨?Y 杌告渶楂樺€硷紙鍦栧儚搴ф绯讳腑 y 瓒婂皬瓒婇潬涓婏級
+                    body_y_max = y2  # body 鐨?Y 杌告渶浣庡€?                    
+                    # Estimation t锚tes dans la bbox
+                    head_positions = self._estimate_head_positions(x1, y1, x2, y2, bgr_img, mask)
                     
                     if aim_type == "body":
-                        # Body 模式：使用 body 中心點
+                        # Body 妯″紡锛氫娇鐢?body 涓績榛?
                         d = math.hypot(body_cx - frame.xres / 2.0, body_cy - frame.yres / 2.0)
-                        targets.append((body_cx, body_cy, d, None, None))  # 最後兩個參數為 head_y_min, body_y_max（body 模式不需要）
+                        targets.append((body_cx, body_cy, d, None, None))  # 鏈€寰屽叐鍊嬪弮鏁哥偤 head_y_min, body_y_max锛坆ody 妯″紡涓嶉渶瑕侊級
                     else:
-                        # Head 或 Nearest 模式：使用 head 位置
+                        # Head 鎴?Nearest 妯″紡锛氫娇鐢?head 浣嶇疆
                         for head_cx, head_cy, bbox in head_positions:
                             self._draw_head_bbox(bgr_img, head_cx, head_cy)
                             d = math.hypot(head_cx - frame.xres / 2.0, head_cy - frame.yres / 2.0)
                             
-                            # 計算 head 的 Y 範圍（用於 nearest 模式）
-                            # head_y_min 是 head 的最高 Y 值（最小的 y，在圖像座標系中）
-                            # 使用 head_cy 減去一個估算的 head 半高（約 15 像素）
-                            estimated_head_height = 30  # 估算 head 高度
-                            head_y_min = head_cy - estimated_head_height // 2  # head 最高 Y 值
-                            
+                            # 瑷堢畻 head 鐨?Y 绡勫湇锛堢敤鏂?nearest 妯″紡锛?
+                            # head_y_min 鏄?head 鐨勬渶楂?Y 鍊硷紙鏈€灏忕殑 y锛屽湪鍦栧儚搴ф绯讳腑锛?
+                            # 浣跨敤 head_cy 娓涘幓涓€鍊嬩及绠楃殑 head 鍗婇珮锛堢磩 15 鍍忕礌锛?
+                            estimated_head_height = 30  # 浼扮畻 head 楂樺害
+                            head_y_min = head_cy - estimated_head_height // 2  # head 鏈€楂?Y 鍊?                            
                             if aim_type == "nearest":
-                                # Nearest 模式：保存 Y 範圍信息
+                                # Nearest 妯″紡锛氫繚瀛?Y 绡勫湇淇℃伅
                                 targets.append((head_cx, head_cy, d, head_y_min, body_y_max))
-                            else:  # head 模式
+                            else:  # head 妯″紡
                                 targets.append((head_cx, head_cy, d, None, None))
                 except Exception as e:
                     print("Erreur dans _estimate_head_positions:", e)
 
+        use_temporal_smoothing = bool(getattr(config, "enable_target_temporal_smoothing", False))
+        if targets and use_temporal_smoothing:
+            targets = self._target_smoother.stabilize(targets, frame.xres / 2.0, frame.yres / 2.0)
+            self.last_target = self._target_smoother.last_target
+            self.stable_candidate = self._target_smoother.stable_candidate
+            self.stable_count = self._target_smoother.stable_count
 
         # FOVs une fois par frame
         try:
@@ -503,11 +561,11 @@ class AimTracker:
         except Exception as e:
             print("[Aim error]", e)
 
-        # 顯示 Detection 視窗（根據設置）
+        # 椤ず Detection 瑕栫獥锛堟牴鎿氳ō缃級
         if (getattr(config, "show_opencv_windows", True) and 
             getattr(config, "show_opencv_detection", True)):
             try:
-                # 優化繪製：添加更多視覺信息
+                # 鍎寲绻＝锛氭坊鍔犳洿澶氳瑕轰俊鎭?
                 display_img = self._draw_enhanced_detection(bgr_img.copy(), targets, frame)
                 cv2.imshow("Detection", display_img)
                 cv2.waitKey(1)
@@ -516,33 +574,33 @@ class AimTracker:
     
     def _draw_enhanced_detection(self, img, targets, frame):
         """
-        繪製增強的檢測視覺化
+        绻＝澧炲挤鐨勬娓瑕哄寲
         
         Args:
-            img: BGR 圖像
-            targets: 目標列表 [(cx, cy, distance), ...]
-            frame: 幀信息對象
+            img: BGR 鍦栧儚
+            targets: 鐩鍒楄〃 [(cx, cy, distance), ...]
+            frame: 骞€淇℃伅灏嶈薄
             
         Returns:
-            繪製後的圖像
+            绻＝寰岀殑鍦栧儚
         """
         center_x = int(frame.xres / 2)
         center_y = int(frame.yres / 2)
         
-        # 1. 繪製十字準星（中心）- 根據設置
+        # 1. 绻＝鍗佸瓧婧栨槦锛堜腑蹇冿級- 鏍规摎瑷疆
         if getattr(config, "show_crosshair", True):
             crosshair_size = 20
-            crosshair_color = (0, 255, 0)  # 綠色
+            crosshair_color = (0, 255, 0)  # 缍犺壊
             cv2.line(img, (center_x - crosshair_size, center_y), 
                     (center_x + crosshair_size, center_y), crosshair_color, 2)
             cv2.line(img, (center_x, center_y - crosshair_size), 
                     (center_x, center_y + crosshair_size), crosshair_color, 2)
             cv2.circle(img, (center_x, center_y), 3, crosshair_color, -1)
         
-        # 2. 繪製 FOV 圓圈
+        # 2. 绻＝ FOV 鍦撳湀
         if getattr(config, "enableaim", False):
             mode_main = getattr(config, "mode", "Normal")
-            # NCAF 時不繪製原本的 FOV 圓
+            # NCAF 鏅備笉绻＝鍘熸湰鐨?FOV 鍦?
             if mode_main != "NCAF":
                 # Main Aimbot FOV
                 main_fov = int(getattr(config, "fovsize", self.fovsize))
@@ -552,24 +610,24 @@ class AimTracker:
                 smooth_fov = int(getattr(config, "normalsmoothfov", self.normalsmoothfov))
                 cv2.circle(img, (center_x, center_y), smooth_fov, (0, 255, 255), 1)
             
-            # NCAF Radius 圈 (Main Aimbot)
+            # NCAF Radius 鍦?(Main Aimbot)
             if mode_main == "NCAF":
                 snap_r = int(getattr(config, "ncaf_snap_radius", 150))
                 near_r = int(getattr(config, "ncaf_near_radius", 50))
-                # Snap Radius (outer) — 虛線風格
+                # Snap Radius (outer) 鈥?铏涚窔棰ㄦ牸
                 self._draw_dashed_circle(img, center_x, center_y, snap_r, (180, 180, 180), 1, dash_len=12)
-                # Near Radius (inner) — 淺藍色
+                # Near Radius (inner) 鈥?娣鸿棈鑹?
                 cv2.circle(img, (center_x, center_y), near_r, (255, 200, 100), 1)
             
-            # Sec Aimbot FOV (如果啟用)
+            # Sec Aimbot FOV (濡傛灉鍟熺敤)
             if getattr(config, "enableaim_sec", False):
                 mode_sec = getattr(config, "mode_sec", "Normal")
                 if mode_sec != "NCAF":
                     sec_fov = int(getattr(config, "fovsize_sec", self.fovsize_sec))
-                    # 與主瞄準不同色，採用青色
+                    # 鑸囦富鐬勬簴涓嶅悓鑹诧紝鎺＄敤闈掕壊
                     cv2.circle(img, (center_x, center_y), sec_fov, (255, 255, 0), 2)
                 
-                # NCAF Radius 圈 (Sec Aimbot)
+                # NCAF Radius 鍦?(Sec Aimbot)
                 if mode_sec == "NCAF":
                     snap_r_sec = int(getattr(config, "ncaf_snap_radius_sec", 150))
                     near_r_sec = int(getattr(config, "ncaf_near_radius_sec", 50))
@@ -581,57 +639,57 @@ class AimTracker:
             tb_fov = int(getattr(config, "tbfovsize", self.tbfovsize))
             cv2.circle(img, (center_x, center_y), tb_fov, (0, 165, 255), 2)
         
-        # 3. 繪製目標信息
+        # 3. 绻＝鐩淇℃伅
         if targets:
-            # 找到最佳目標（距離中心最近的）
+            # 鎵惧埌鏈€浣崇洰妯欙紙璺濋洟涓績鏈€杩戠殑锛?
             best_target = min(targets, key=lambda t: t[2])
             
             for i, target in enumerate(targets):
-                # targets 結構: (cx, cy, distance, head_y_min, body_y_max)
+                # targets 绲愭: (cx, cy, distance, head_y_min, body_y_max)
                 if len(target) >= 5:
                     tx, ty, dist, _, _ = target
                 else:
-                    # 兼容舊格式
+                    # 鍏煎鑸婃牸寮?
                     tx, ty, dist = target[:3]
                 
                 is_best = target == best_target
                 
-                # 目標點顏色（最佳目標用不同顏色）
+                # 鐩榛為鑹诧紙鏈€浣崇洰妯欑敤涓嶅悓椤忚壊锛?
                 if is_best:
-                    target_color = (0, 0, 255)  # 紅色
+                    target_color = (0, 0, 255)  # 绱呰壊
                     circle_radius = 8
-                    thickness = -1  # 實心
+                    thickness = -1  # 瀵﹀績
                 else:
-                    target_color = (255, 0, 0)  # 藍色
+                    target_color = (255, 0, 0)  # 钘嶈壊
                     circle_radius = 5
                     thickness = 2
                 
-                # 繪製目標點
+                # 绻＝鐩榛?
                 cv2.circle(img, (int(tx), int(ty)), circle_radius, target_color, thickness)
                 
-                # 繪製從中心到目標的連線（僅最佳目標）
+                # 绻＝寰炰腑蹇冨埌鐩鐨勯€ｇ窔锛堝儏鏈€浣崇洰妯欙級
                 if is_best:
                     cv2.line(img, (center_x, center_y), (int(tx), int(ty)), 
                             (0, 255, 0), 1, cv2.LINE_AA)
                 
-                # 繪製距離文字 - 根據設置
+                # 绻＝璺濋洟鏂囧瓧 - 鏍规摎瑷疆
                 if getattr(config, "show_distance_text", True):
                     dist_text = f"{int(dist)}px"
                     cv2.putText(img, dist_text, (int(tx) + 10, int(ty) - 10),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, target_color, 1, cv2.LINE_AA)
         
-        # 4. 繪製狀態信息（左上角）- 根據設置
+        # 4. 绻＝鐙€鎱嬩俊鎭紙宸︿笂瑙掞級- 鏍规摎瑷疆
         y_offset = 30
         line_height = 25
         
-        # 模式信息
+        # 妯″紡淇℃伅
         if getattr(config, "show_mode_text", True):
             mode = getattr(config, "mode", "Normal")
             cv2.putText(img, f"Mode: {mode}", (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
             y_offset += line_height
         
-        # Aimbot 狀態
+        # Aimbot 鐙€鎱?
         if getattr(config, "show_aimbot_status", True):
             if getattr(config, "enableaim", False):
                 main_status = "ON" if getattr(config, "enableaim", False) else "OFF"
@@ -647,7 +705,7 @@ class AimTracker:
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2, cv2.LINE_AA)
                 y_offset += line_height
         
-        # Triggerbot 狀態
+        # Triggerbot 鐙€鎱?
         if getattr(config, "show_triggerbot_status", True) and getattr(config, "enabletb", False):
             tb_status = "ON" if getattr(config, "enabletb", False) else "OFF"
             status_color = (0, 165, 255) if tb_status == "ON" else (128, 128, 128)
@@ -655,7 +713,7 @@ class AimTracker:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2, cv2.LINE_AA)
             y_offset += line_height
         
-        # 目標數量
+        # 鐩鏁搁噺
         if getattr(config, "show_target_count", True):
             cv2.putText(img, f"Targets: {len(targets)}", (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
@@ -665,15 +723,15 @@ class AimTracker:
     @staticmethod
     def _draw_dashed_circle(img, cx, cy, radius, color, thickness=1, dash_len=10):
         """
-        繪製虛線圓圈
+        绻＝铏涚窔鍦撳湀
 
         Args:
-            img: BGR 圖像
-            cx, cy: 圓心
-            radius: 半徑 (px)
-            color: BGR 顏色
-            thickness: 線粗
-            dash_len: 每段弧的角度 (度)
+            img: BGR 鍦栧儚
+            cx, cy: 鍦撳績
+            radius: 鍗婂緫 (px)
+            color: BGR 椤忚壊
+            thickness: 绶氱矖
+            dash_len: 姣忔寮х殑瑙掑害 (搴?
         """
         import numpy as np
         if radius <= 0:
@@ -685,161 +743,132 @@ class AimTracker:
 
     def _draw_head_bbox(self, img, headx, heady):
         """
-        繪製頭部位置標記（優化版本）
+        绻＝闋儴浣嶇疆妯欒锛堝劒鍖栫増鏈級
         
-        在圖像上繪製一個帶外圈的頭部標記，更容易識別。
-        
+        鍦ㄥ湒鍍忎笂绻＝涓€鍊嬪付澶栧湀鐨勯牠閮ㄦ瑷橈紝鏇村鏄撹瓨鍒ャ€?        
         Args:
-            img: BGR 圖像陣列
-            headx: 頭部 X 座標
-            heady: 頭部 Y 座標
+            img: BGR 鍦栧儚闄ｅ垪
+            headx: 闋儴 X 搴ф
+            heady: 闋儴 Y 搴ф
         """
-        # 外圈（白色）
+        # 澶栧湀锛堢櫧鑹诧級
         cv2.circle(img, (int(headx), int(heady)), 6, (255, 255, 255), 2)
-        # 內圈（紅色）
+        # 鍏у湀锛堢磪鑹诧級
         cv2.circle(img, (int(headx), int(heady)), 3, (0, 0, 255), -1)
 
-    def _estimate_head_positions(self, x1, y1, x2, y2, img):
+    def _estimate_head_positions(self, x1, y1, x2, y2, img, mask=None):
         """
-        估算頭部位置
-        
-        根據身體檢測框估算頭部位置。首先計算預期頭部位置（考慮偏移），
-        然後在該區域執行二次檢測以精確定位頭部。
-        
-        Args:
-            x1, y1: 身體檢測框左上角座標
-            x2, y2: 身體檢測框右下角座標
-            img: BGR 圖像陣列
-            
-        Returns:
-            list: 頭部位置列表，每個元素為 (headx, heady, bbox) 元組
+        Estimate head position from body bbox geometry only.
         """
-        # 確保圖像是連續的數組（應該已經在讀取時處理，但這裡作為安全檢查）
         if not img.flags['C_CONTIGUOUS']:
             img = np.ascontiguousarray(img)
-        
-        offsetY = getattr(config, 'offsetY', 0)
-        offsetX = getattr(config, 'offsetX', 0)
 
-        width = x2 - x1
-        height = y2 - y1
+        offset_y = float(getattr(config, "offsetY", 0))
+        offset_x = float(getattr(config, "offsetX", 0))
 
-        # Crop léger
+        width = max(1, int(x2) - int(x1))
+        height = max(1, int(y2) - int(y1))
+
         top_crop_factor = 0.10
         side_crop_factor = 0.10
 
-        effective_y1 = y1 + height * top_crop_factor
-        effective_height = height * (1 - top_crop_factor)
+        effective_y1 = float(y1) + float(height) * top_crop_factor
+        effective_height = float(height) * (1.0 - top_crop_factor)
+        effective_x1 = float(x1) + float(width) * side_crop_factor
+        effective_x2 = float(x2) - float(width) * side_crop_factor
+        effective_width = max(1.0, effective_x2 - effective_x1)
 
-        effective_x1 = x1 + width * side_crop_factor
-        effective_x2 = x2 - width * side_crop_factor
-        effective_width = effective_x2 - effective_x1
+        center_x = (effective_x1 + effective_x2) / 2.0
+        headx_base = center_x + effective_width * (offset_x / 100.0)
+        # Keep Y estimate deterministic (no mask-driven jitter).
+        base_head_ratio = float(getattr(config, "head_estimate_ratio", 0.22))
+        heady_base = float(y1) + float(height) * base_head_ratio + effective_height * (offset_y / 100.0)
 
-        center_x = (effective_x1 + effective_x2) / 2
-        headx_base = center_x + effective_width * (offsetX / 100)
-        heady_base = effective_y1 + effective_height * (offsetY / 100)
+        # Optional one-pass refinement from the already computed global mask.
+        # Use only the upper body band and median X to reduce left/right arm jitter.
+        if mask is not None:
+            mx1 = max(0, min(int(x1), mask.shape[1] - 1))
+            my1 = max(0, min(int(y1), mask.shape[0] - 1))
+            mx2 = max(mx1 + 1, min(int(x2), mask.shape[1]))
+            my2 = max(my1 + 1, min(int(y2), mask.shape[0]))
+            upper_h = max(6, int((my2 - my1) * 0.42))
+            upper_y2 = min(my2, my1 + upper_h)
+            upper_mask = mask[my1:upper_y2, mx1:mx2]
+            if upper_mask.size > 0:
+                ys, xs = np.where(upper_mask > 0)
+                if len(xs) >= int(getattr(config, "head_refine_min_pixels", 20)):
+                    headx_base = float(mx1 + int(np.median(xs)))
 
-        pixel_marginx = 40
-        pixel_marginy = 10
-
+        pixel_marginx = max(12, int(width * 0.20))
+        pixel_marginy = max(8, int(height * 0.10))
         x1_roi = int(max(headx_base - pixel_marginx, 0))
         y1_roi = int(max(heady_base - pixel_marginy, 0))
         x2_roi = int(min(headx_base + pixel_marginx, img.shape[1]))
         y2_roi = int(min(heady_base + pixel_marginy, img.shape[0]))
 
-        roi = img[y1_roi:y2_roi, x1_roi:x2_roi]
-        # 繪製 ROI 區域（半透明黃色邊框）
+        if x2_roi <= x1_roi or y2_roi <= y1_roi:
+            return [(int(round(headx_base)), int(round(heady_base)), (x1_roi, y1_roi, x2_roi, y2_roi))]
+
         cv2.rectangle(img, (x1_roi, y1_roi), (x2_roi, y2_roi), (0, 255, 255), 1)
 
-        results = []
-        detections = []
-        try:
-            detections, mask = perform_detection(self.model, roi)
-        except Exception as e:
-            print("[perform_detection ROI error]", e)
-
-        if not detections:
-            # Sans détection → garder le head position avec offset
-            results.append((headx_base, heady_base, (x1_roi, y1_roi, x2_roi, y2_roi)))
-        else:
-            for det in detections:
-                x, y, w, h = det["bbox"]
-                cv2.rectangle(img, (x1_roi + x, y1_roi + y), (x1_roi + x + w, y1_roi + y + h), (0, 255, 0), 2)
-
-                # Position détection brute
-                headx_det = x1_roi + x + w / 2
-                heady_det = y1_roi + y + h / 2
-
-                # Application de l'offset aussi sur la détection
-                headx_det += effective_width * (offsetX / 100)
-                heady_det += effective_height * (offsetY / 100)
-
-                results.append((headx_det, heady_det, (x1_roi + x, y1_roi + y, w, h)))
-
-        return results
+        return [(int(round(headx_base)), int(round(heady_base)), (x1_roi, y1_roi, x2_roi, y2_roi))]
 
     def _draw_body(self, img, x1, y1, x2, y2, conf):
         """
-        繪製身體檢測框（優化版本）
-        
-        在圖像上繪製身體檢測框和置信度標籤，使用更好的視覺效果。
-        
+        绻＝韬珨妾㈡脯妗嗭紙鍎寲鐗堟湰锛?        
+        鍦ㄥ湒鍍忎笂绻＝韬珨妾㈡脯妗嗗拰缃俊搴︽绫わ紝浣跨敤鏇村ソ鐨勮瑕烘晥鏋溿€?        
         Args:
-            img: BGR 圖像陣列
-            x1, y1: 檢測框左上角座標
-            x2, y2: 檢測框右下角座標
-            conf: 檢測置信度
-        """
-        # 繪製矩形框（藍色，較粗）
+            img: BGR 鍦栧儚闄ｅ垪
+            x1, y1: 妾㈡脯妗嗗乏涓婅搴ф
+            x2, y2: 妾㈡脯妗嗗彸涓嬭搴ф
+            conf: 妾㈡脯缃俊搴?        """
+        # 绻＝鐭╁舰妗嗭紙钘嶈壊锛岃純绮楋級
         cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
         
-        # 繪製角標（使其更明顯）
+        # 绻＝瑙掓锛堜娇鍏舵洿鏄庨’锛?
         corner_len = 20
         thickness = 3
-        # 左上角
+        # 宸︿笂瑙?
         cv2.line(img, (int(x1), int(y1)), (int(x1 + corner_len), int(y1)), (0, 255, 0), thickness)
         cv2.line(img, (int(x1), int(y1)), (int(x1), int(y1 + corner_len)), (0, 255, 0), thickness)
-        # 右上角
+        # 鍙充笂瑙?
         cv2.line(img, (int(x2), int(y1)), (int(x2 - corner_len), int(y1)), (0, 255, 0), thickness)
         cv2.line(img, (int(x2), int(y1)), (int(x2), int(y1 + corner_len)), (0, 255, 0), thickness)
-        # 左下角
+        # 宸︿笅瑙?
         cv2.line(img, (int(x1), int(y2)), (int(x1 + corner_len), int(y2)), (0, 255, 0), thickness)
         cv2.line(img, (int(x1), int(y2)), (int(x1), int(y2 - corner_len)), (0, 255, 0), thickness)
-        # 右下角
+        # 鍙充笅瑙?
         cv2.line(img, (int(x2), int(y2)), (int(x2 - corner_len), int(y2)), (0, 255, 0), thickness)
         cv2.line(img, (int(x2), int(y2)), (int(x2), int(y2 - corner_len)), (0, 255, 0), thickness)
         
-        # 繪製標籤背景（半透明黑色矩形）
+        # 绻＝妯欑堡鑳屾櫙锛堝崐閫忔槑榛戣壊鐭╁舰锛?
         label_text = f"Body {conf:.2f}"
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.6
         font_thickness = 2
         (text_width, text_height), baseline = cv2.getTextSize(label_text, font, font_scale, font_thickness)
         
-        # 標籤位置
+        # 妯欑堡浣嶇疆
         label_x1 = int(x1)
         label_y1 = int(y1) - text_height - 10
         label_x2 = int(x1) + text_width + 10
         label_y2 = int(y1)
         
-        # 繪製背景矩形
+        # 绻＝鑳屾櫙鐭╁舰
         cv2.rectangle(img, (label_x1, label_y1), (label_x2, label_y2), (0, 0, 0), -1)
         
-        # 繪製文字
+        # 绻＝鏂囧瓧
         cv2.putText(img, label_text, (int(x1) + 5, int(y1) - 5), 
                    font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
 
     def _aim_and_move(self, targets, frame, img):
         """
-        處理瞄準和移動邏輯
-        
-        統一調度器：Main Aimbot 和 Sec Aimbot 各自使用獨立的 Operation Mode。
-        支持 Normal、Silent、NCAF、WindMouse 四種模式。
-        
+        铏曠悊鐬勬簴鍜岀Щ鍕曢倧杓?        
+        绲变竴瑾垮害鍣細Main Aimbot 鍜?Sec Aimbot 鍚勮嚜浣跨敤鐛ㄧ珛鐨?Operation Mode銆?        鏀寔 Normal銆丼ilent銆丯CAF銆乄indMouse 鍥涚ó妯″紡銆?        
         Args:
-            targets: 目標列表，每個元素為 (cx, cy, distance) 元組
-            frame: 視頻幀物件
-            img: BGR 圖像陣列
+            targets: 鐩鍒楄〃锛屾瘡鍊嬪厓绱犵偤 (cx, cy, distance) 鍏冪祫
+            frame: 瑕栭牷骞€鐗╀欢
+            img: BGR 鍦栧儚闄ｅ垪
         """
         try:
             process_normal_mode(targets, frame, img, self)
@@ -849,46 +878,45 @@ class AimTracker:
 
 if __name__ == "__main__":
     """
-    主程序入口
-    
-    初始化所有必要的組件並啟動應用程式：
-    1. 初始化 Capture Service
-    2. 創建 AimTracker 實例
-    3. 設置 UI 外觀
-    4. 創建並啟動 UI 應用
+    涓荤▼搴忓叆鍙?    
+    鍒濆鍖栨墍鏈夊繀瑕佺殑绲勪欢涓﹀暉鍕曟噳鐢ㄧ▼寮忥細
+    1. 鍒濆鍖?Capture Service
+    2. 鍓靛缓 AimTracker 瀵︿緥
+    3. 瑷疆 UI 澶栬
+    4. 鍓靛缓涓﹀暉鍕?UI 鎳夌敤
     """
     import customtkinter as ctk
     from src.ui import ViewerApp
     
-    # 初始化捕獲服務
+    # 鍒濆鍖栨崟鐛叉湇鍕?
     capture_service = CaptureService()
     
-    # 創建一個臨時應用實例用於 AimTracker
+    # 鍓靛缓涓€鍊嬭嚚鏅傛噳鐢ㄥ渚嬬敤鏂?AimTracker
     class TempApp:
-        """臨時應用類"""
+        """鑷ㄦ檪鎳夌敤椤?"""
         def __init__(self, capture):
             self.capture = capture
     
     temp_app = TempApp(capture_service)
     
-    # 創建 AimTracker (use config value if available)
+    # 鍓靛缓 AimTracker (use config value if available)
     target_fps = getattr(config, "target_fps", 80)
     tracker = AimTracker(app=temp_app, target_fps=target_fps)
     
-    # 設置外觀
+    # 瑷疆澶栬
     ctk.set_appearance_mode("Dark")
     try:
         ctk.set_default_color_theme("themes/metal.json")
     except Exception:
         pass
     
-    # 創建 UI 應用
+    # 鍓靛缓 UI 鎳夌敤
     app = ViewerApp(tracker=tracker, capture_service=capture_service)
     
-    # 更新 tracker 的 app 引用
+    # 鏇存柊 tracker 鐨?app 寮曠敤
     tracker.app = app
     
-    # 載入並應用配置（確保所有設置都正確）
+    # 杓夊叆涓︽噳鐢ㄩ厤缃紙纰轰繚鎵€鏈夎ō缃兘姝ｇ⒑锛?
     config.load_from_file()
     app._sync_config_to_tracker()
     
@@ -905,3 +933,5 @@ if __name__ == "__main__":
     app.after(2000, app._check_for_updates)
     
     app.mainloop()
+
+

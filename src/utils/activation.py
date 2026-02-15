@@ -21,6 +21,24 @@ _activation_states = {
     }
 }
 
+_BUTTON_NAME_TO_IDX = {
+    "left mouse button": 0,
+    "right mouse button": 1,
+    "middle mouse button": 2,
+    "side mouse 4 button": 3,
+    "side mouse 5 button": 4,
+}
+
+
+def _normalize_button_idx(button_idx):
+    if button_idx is None:
+        return None
+    try:
+        return int(button_idx)
+    except Exception:
+        key = str(button_idx).strip().lower()
+        return _BUTTON_NAME_TO_IDX.get(key, None)
+
 
 def check_aimbot_activation(button_idx: int, activation_type: str, is_sec: bool = False) -> bool:
     """
@@ -34,12 +52,18 @@ def check_aimbot_activation(button_idx: int, activation_type: str, is_sec: bool 
     Returns:
         bool: 是否應該激活
     """
-    if button_idx is None:
-        return False
+    normalized_idx = _normalize_button_idx(button_idx)
+    if normalized_idx is None:
+        # Treat invalid button as "not pressed" to keep hold_disable semantics usable.
+        current_pressed = False
+    else:
+        try:
+            current_pressed = bool(is_button_pressed(normalized_idx))
+        except Exception:
+            current_pressed = False
     
     key = "sec" if is_sec else "main"
     state = _activation_states[key]
-    current_pressed = is_button_pressed(button_idx)
     
     with state["lock"]:
         last_pressed = state["last_button_state"]

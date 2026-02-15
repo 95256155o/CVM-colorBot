@@ -1,6 +1,6 @@
-"""
-UI 模組 - Ultra Minimalist 風格
-處理所有用戶界面相關的功能
+﻿"""
+UI 妯＄祫 - Ultra Minimalist 棰ㄦ牸
+铏曠悊鎵€鏈夌敤鎴剁晫闈㈢浉闂滅殑鍔熻兘
 """
 import customtkinter as ctk
 import tkinter as tk
@@ -18,16 +18,16 @@ from src.utils.mouse_input import MouseInputMonitor
 from src.utils.debug_logger import get_recent_logs, clear_logs, get_log_count, log_print
 from src.utils.updater import get_update_checker
 
-# --- 風格配置 (Ultra Minimalist) ---
-COLOR_BG = "#121212"          # 統一深灰背景
-COLOR_SIDEBAR = "#121212"     # 與背景同色，僅靠留白區分
-COLOR_SURFACE = "#1E1E1E"     # 極淡的表面色，用於輸入框
-COLOR_ACCENT = "#FFFFFF"      # 白色作為強調色 (極簡黑白)
+# --- 棰ㄦ牸閰嶇疆 (Ultra Minimalist) ---
+COLOR_BG = "#121212"          # 绲变竴娣辩伆鑳屾櫙
+COLOR_SIDEBAR = "#121212"     # 鑸囪儗鏅悓鑹诧紝鍍呴潬鐣欑櫧鍗€鍒?
+COLOR_SURFACE = "#1E1E1E"     # 妤垫贰鐨勮〃闈㈣壊锛岀敤鏂艰几鍏ユ
+COLOR_ACCENT = "#FFFFFF"      # 鐧借壊浣滅偤寮疯鑹?(妤电啊榛戠櫧)
 COLOR_ACCENT_HOVER = "#E0E0E0"
-COLOR_TEXT = "#E0E0E0"        # 灰白文字
-COLOR_TEXT_DIM = "#757575"    # 暗灰輔助文字
-COLOR_BORDER = "#2C2C2C"      # 非常淡的分割線
-COLOR_DANGER = "#CF6679"      # 柔和紅
+COLOR_TEXT = "#E0E0E0"        # 鐏扮櫧鏂囧瓧
+COLOR_TEXT_DIM = "#757575"    # 鏆楃伆杓斿姪鏂囧瓧
+COLOR_BORDER = "#2C2C2C"      # 闈炲父娣＄殑鍒嗗壊绶?
+COLOR_DANGER = "#CF6679"      # 鏌斿拰绱?
 COLOR_SUCCESS = "#4CAF50"
 
 FONT_MAIN = ("Roboto", 11)
@@ -43,49 +43,50 @@ BUTTONS = {
 }
 
 class ViewerApp(ctk.CTk):
-    """主應用程式 UI 類 (Ultra Minimalist)"""
+    """涓绘噳鐢ㄧ▼寮?UI 椤?(Ultra Minimalist)"""
     
     def __init__(self, tracker, capture_service):
         super().__init__()
         
-        # --- 視窗設置 ---
+        # --- 瑕栫獥瑷疆 ---
         self.title("CVM colorBot")
         self.geometry("1280x950")
         
-        # 注意：使用 overrideredirect 會導致任務欄不顯示
-        # 如果需要任務欄圖標，註釋掉下面這行
+        # 娉ㄦ剰锛氫娇鐢?overrideredirect 鏈冨皫鑷翠换鍕欐瑒涓嶉’绀?
+        # 濡傛灉闇€瑕佷换鍕欐瑒鍦栨锛岃ɑ閲嬫帀涓嬮潰閫欒
         # self.overrideredirect(True)
         
         self.configure(fg_color=COLOR_BG)
         
-        # 設置窗口屬性以確保任務欄顯示
+        # 瑷疆绐楀彛灞€т互纰轰繚浠诲嫏娆勯’绀?
         self.attributes('-topmost', False)
         
-        # --- 數據引用 ---
+        # --- 鏁告摎寮曠敤 ---
         self.tracker = tracker
         self.capture = capture_service
         
-        # --- 滑鼠輸入監控 ---
+        # --- 婊戦紶杓稿叆鐩ｆ帶 ---
         self.mouse_input_monitor = MouseInputMonitor()
         
         # --- Update Checker ---
         self.update_checker = get_update_checker()
+        self._update_check_in_progress = False
         
-        # --- Debug tab 狀態變量（需要在 __init__ 中初始化以保持狀態） ---
+        # --- Debug tab 鐙€鎱嬭畩閲忥紙闇€瑕佸湪 __init__ 涓垵濮嬪寲浠ヤ繚鎸佺媭鎱嬶級 ---
         self.debug_mouse_input_var = tk.BooleanVar(value=False)
         
-        # --- UI 狀態 ---
+        # --- UI 鐙€鎱?---
         self._slider_widgets = {}
         self._checkbox_vars = {}
         self._option_widgets = {}
         self.current_frame = None
         
-        # 初始化時應用 config 中的 capture_mode
+        # 鍒濆鍖栨檪鎳夌敤 config 涓殑 capture_mode
         init_mode = getattr(config, "capture_mode", "NDI")
         self.capture.set_mode(init_mode)
         self.capture_method_var = tk.StringVar(value=init_mode)
         
-        # --- Capture Controls 狀態保存（從 config 讀取） ---
+        # --- Capture Controls 鐙€鎱嬩繚瀛橈紙寰?config 璁€鍙栵級 ---
         self.saved_udp_ip = getattr(config, "udp_ip", "127.0.0.1")
         self.saved_udp_port = getattr(config, "udp_port", "1234")
         self.saved_ndi_source = getattr(config, "last_ndi_source", None)
@@ -107,36 +108,36 @@ class ViewerApp(ctk.CTk):
         self._mouse_api_connect_job_id = 0
         self._mouse_api_connect_timeout_ms = 12000
         
-        # --- 構建界面 ---
+        # --- 妲嬪缓鐣岄潰 ---
         self._build_layout()
         
-        # --- 啟動任務 ---
+        # --- 鍟熷嫊浠诲嫏 ---
         self.after(100, self._process_source_updates)
         self.after(500, self._update_connection_status_loop)
         self.after(200, self._load_initial_config)
-        self.after(300, self._update_performance_stats)  # 性能統計更新
-        self.after(50, self._update_mouse_input_debug)  # 滑鼠輸入調試更新
-        self.after(100, self._update_debug_log)  # Debug 日誌更新
+        self.after(300, self._update_performance_stats)  # 鎬ц兘绲辫▓鏇存柊
+        self.after(50, self._update_mouse_input_debug)  # 婊戦紶杓稿叆瑾胯│鏇存柊
+        self.after(100, self._update_debug_log)  # Debug 鏃ヨ獙鏇存柊
 
     def _build_layout(self):
-        """構建佈局：無明顯邊界的側邊欄 + 內容區"""
+        """妲嬪缓浣堝眬锛氱劇鏄庨’閭婄晫鐨勫伌閭婃瑒 + 鍏у鍗€"""
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=1)
         
-        # 標題欄 (隱形)
+        # 妯欓娆?(闅卞舰)
         self._build_title_bar()
         
-        # 側邊欄
+        # 鍋撮倞娆?
         self._build_sidebar()
         
-        # 內容區
+        # 鍏у鍗€
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.content_frame.grid(row=1, column=1, sticky="nsew", padx=24, pady=20)
         
         self._show_general_tab()
 
     def _build_title_bar(self):
-        """極簡標題欄"""
+        """妤电啊妯欓娆?"""
         self.title_bar = ctk.CTkFrame(self, height=30, fg_color=COLOR_BG, corner_radius=0)
         self.title_bar.grid(row=0, column=0, columnspan=2, sticky="ew")
         
@@ -150,7 +151,7 @@ class ViewerApp(ctk.CTk):
         if os.path.exists(logo_path):
             try:
                 logo_image = Image.open(logo_path)
-                # 調整圖標大小為 20x20
+                # 瑾挎暣鍦栨澶у皬鐐?20x20
                 logo_image = logo_image.resize((20, 20), Image.Resampling.LANCZOS)
                 logo_ctk = ctk.CTkImage(light_image=logo_image, dark_image=logo_image, size=(20, 20))
                 self.logo_lbl = ctk.CTkLabel(
@@ -183,10 +184,10 @@ class ViewerApp(ctk.CTk):
         # Update button (only show if update available)
         self.update_btn = None
         
-        # 關閉按鈕 (純文字)
+        # 闂滈枆鎸夐垥 (绱旀枃瀛?
         close_btn = ctk.CTkButton(
             self.title_bar, 
-            text="✕", 
+            text="X",
             width=30, 
             height=30,
             fg_color="transparent", 
@@ -198,7 +199,7 @@ class ViewerApp(ctk.CTk):
         )
         close_btn.pack(side="right", padx=5)
         
-        # 拖動
+        # 鎷栧嫊
         self.title_bar.bind("<Button-1>", self.start_move)
         self.title_bar.bind("<B1-Motion>", self.do_move)
         title_lbl.bind("<Button-1>", self.start_move)
@@ -208,16 +209,16 @@ class ViewerApp(ctk.CTk):
             self.logo_lbl.bind("<B1-Motion>", self.do_move)
 
     def _build_sidebar(self):
-        """側邊欄：純圖標或簡約文字"""
+        """鍋撮倞娆勶細绱斿湒妯欐垨绨＄磩鏂囧瓧"""
         self.sidebar = ctk.CTkFrame(self, width=165, fg_color=COLOR_BG, corner_radius=0)
         self.sidebar.grid(row=1, column=0, sticky="ns")
         self.sidebar.grid_propagate(False)
         
-        # 分隔線 (細微)
+        # 鍒嗛殧绶?(绱板井)
         sep = ctk.CTkFrame(self.sidebar, width=1, fg_color=COLOR_BORDER)
         sep.pack(side="right", fill="y")
 
-        # 導航容器
+        # 灏庤埅瀹瑰櫒
         nav_container = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         nav_container.pack(fill="x", padx=20, pady=20)
         
@@ -237,11 +238,11 @@ class ViewerApp(ctk.CTk):
             self.nav_buttons[text] = btn
             btn.pack(pady=2, fill="x")
             
-        # 底部區域
+        # 搴曢儴鍗€鍩?
         bottom_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         bottom_frame.pack(side="bottom", fill="x", padx=20, pady=20)
         
-        # 主題切換 (文字)
+        # 涓婚鍒囨彌 (鏂囧瓧)
         self.theme_btn = ctk.CTkButton(
             bottom_frame,
             text="Dark Mode",
@@ -255,7 +256,7 @@ class ViewerApp(ctk.CTk):
         )
         self.theme_btn.pack(fill="x", pady=5)
         
-        # 性能信息顯示
+        # 鎬ц兘淇℃伅椤ず
         self.fps_label = ctk.CTkLabel(
             bottom_frame, 
             text="FPS: --", 
@@ -283,7 +284,7 @@ class ViewerApp(ctk.CTk):
         )
         self.total_delay_label.pack(fill="x", pady=2)
         
-        # 狀態 (極簡點)
+        # 鐙€鎱?(妤电啊榛?
         self.status_indicator = ctk.CTkLabel(
             bottom_frame,
             text="Status: Offline",
@@ -305,7 +306,7 @@ class ViewerApp(ctk.CTk):
 
         self.hardware_conn_label = ctk.CTkLabel(
             bottom_frame,
-            text="Hardware Status: 🔴 Disconnected",
+            text="Hardware Status: 馃敶 Disconnected",
             text_color=COLOR_DANGER,
             font=("Roboto", 10),
             anchor="w",
@@ -315,7 +316,7 @@ class ViewerApp(ctk.CTk):
         self._hardware_info_expanded = False
         self.hardware_details_toggle = ctk.CTkButton(
             bottom_frame,
-            text="Hardware Info ▸",
+            text="Hardware Info",
             command=self._toggle_hardware_info_details,
             fg_color="transparent",
             hover_color=COLOR_SURFACE,
@@ -336,10 +337,10 @@ class ViewerApp(ctk.CTk):
         )
         self._update_hardware_status_ui()
         
-        # 設置按鈕
+        # 瑷疆鎸夐垥
         settings_btn = ctk.CTkButton(
             bottom_frame,
-            text="⚙️ settings",
+            text="鈿欙笍 settings",
             command=self._open_settings_window,
             fg_color="transparent",
             hover_color=COLOR_BORDER,
@@ -366,7 +367,7 @@ class ViewerApp(ctk.CTk):
             height=35,
             fg_color="transparent",
             text_color=COLOR_TEXT_DIM,
-            hover_color=None, # 無背景懸停
+            hover_color=None, # 鐒¤儗鏅嚫鍋?
             anchor="w",
             font=FONT_BOLD,
             command=lambda: self._handle_nav_click(text, command)
@@ -375,7 +376,7 @@ class ViewerApp(ctk.CTk):
     def _handle_nav_click(self, text, command):
         for btn_text, btn in self.nav_buttons.items():
             if btn_text == text:
-                btn.configure(text_color=COLOR_ACCENT) # 僅改變文字顏色
+                btn.configure(text_color=COLOR_ACCENT) # 鍍呮敼璁婃枃瀛楅鑹?
             else:
                 btn.configure(text_color=COLOR_TEXT_DIM)
         command()
@@ -383,6 +384,11 @@ class ViewerApp(ctk.CTk):
     def _clear_content(self):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
+        # Clear widget maps to avoid stale destroyed references during config apply.
+        self._option_widgets = {}
+        self._slider_widgets = {}
+        if hasattr(self, "_range_slider_widgets"):
+            self._range_slider_widgets = {}
 
     def _toggle_theme(self):
         if ctk.get_appearance_mode() == "Dark":
@@ -392,7 +398,7 @@ class ViewerApp(ctk.CTk):
             ctk.set_appearance_mode("Dark")
             self.theme_btn.configure(text="Dark Mode")
 
-    # --- 頁面內容 ---
+    # --- 闋侀潰鍏у ---
 
     def _show_general_tab(self):
         self._clear_content()
@@ -451,14 +457,14 @@ class ViewerApp(ctk.CTk):
         self.hardware_content_frame.pack(fill="x", pady=5)
         self._update_mouse_api_ui()
         
-        # ── CAPTURE CONTROLS (collapsible) ──
+        # 鈹€鈹€ CAPTURE CONTROLS (collapsible) 鈹€鈹€
         sec_capture = self._create_collapsible_section(self.content_frame, "Capture Controls", initially_open=True)
         
         # Capture Method Selection
         self.capture_method_var.set(self.capture.mode)
-        # 創建 option menu
+        # 鍓靛缓 option menu
         self.capture_method_option = self._add_option_row_in_frame(sec_capture, "Method", ["NDI", "UDP", "CaptureCard", "MSS"], self._on_capture_method_changed)
-        # 顯式設置當前值
+        # 椤紡瑷疆鐣跺墠鍊?
         self.capture_method_option.set(self.capture.mode)
         
         self._add_spacer_in_frame(sec_capture)
@@ -469,10 +475,10 @@ class ViewerApp(ctk.CTk):
         
         self._update_capture_ui()
 
-        # ── SETTINGS (collapsible) ──
+        # 鈹€鈹€ SETTINGS (collapsible) 鈹€鈹€
         sec_settings = self._create_collapsible_section(self.content_frame, "Settings", initially_open=True)
         
-        # In-Game Sensitivity (預設 0.235, 範圍 0.1-20)
+        # In-Game Sensitivity (闋愯ō 0.235, 绡勫湇 0.1-20)
         self._add_slider_in_frame(sec_settings, "In-Game Sensitivity", "in_game_sens", 0.1, 20, 
                         float(getattr(config, "in_game_sens", 0.235)), 
                         self._on_config_in_game_sens_changed, is_float=True)
@@ -481,12 +487,12 @@ class ViewerApp(ctk.CTk):
         
         self.color_option = self._add_option_row_in_frame(sec_settings, "Target Color", ["yellow", "purple", "custom"], self._on_color_selected)
         self._option_widgets["color"] = self.color_option
-        # 設置當前值
+        # 瑷疆鐣跺墠鍊?
         current_color = getattr(config, "color", "yellow")
         self.color_option.set(current_color)
         
-        # ── Custom HSV Settings (collapsible, only show when custom is selected) ──
-        # 創建 container 以便控制顯示/隱藏（不自動 pack）
+        # 鈹€鈹€ Custom HSV Settings (collapsible, only show when custom is selected) 鈹€鈹€
+        # 鍓靛缓 container 浠ヤ究鎺у埗椤ず/闅辫棌锛堜笉鑷嫊 pack锛?
         self.custom_hsv_section, self.custom_hsv_container = self._create_collapsible_section(
             self.content_frame, "Custom HSV", initially_open=True, auto_pack=False
         )
@@ -519,15 +525,15 @@ class ViewerApp(ctk.CTk):
                                   int(getattr(config, "custom_hsv_max_v", 255)),
                                   lambda v: self._on_custom_hsv_changed("custom_hsv_max_v", v))
         
-        # 根據當前選擇顯示/隱藏 Custom HSV 區塊
+        # 鏍规摎鐣跺墠閬告搰椤ず/闅辫棌 Custom HSV 鍗€濉?
         self._update_custom_hsv_visibility()
         
-        # ── DETECTION PARAMETERS (collapsible) ──
+        # 鈹€鈹€ DETECTION PARAMETERS (collapsible) 鈹€鈹€
         detection_tooltip_text = (
-            "• Merge Distance: Controls the distance threshold for merging detection rectangles. "
+            "鈥?Merge Distance: Controls the distance threshold for merging detection rectangles. "
             "Higher values merge more (may cause false merges), lower values merge less (may create multiple targets). "
             "Recommended: 200-300 (default 250)\n\n"
-            "• Min Contour Points: Filters contours with too few points (usually noise). "
+            "鈥?Min Contour Points: Filters contours with too few points (usually noise). "
             "Higher values filter more strictly (may miss small targets), lower values filter more loosely (may include more noise). "
             "Recommended: 3-10 (default 5)"
         )
@@ -550,15 +556,15 @@ class ViewerApp(ctk.CTk):
                                   int(getattr(config, "detection_min_contour_points", 5)),
                                   self._on_detection_min_contour_points_changed)
         
-        # ── MOUSE LOCK (collapsible) ──
+        # 鈹€鈹€ MOUSE LOCK (collapsible) 鈹€鈹€
         mouse_lock_tooltip_text = (
-            "• Lock Main Aimbot X-Axis: Blocks physical mouse movement on X-axis when Main Aimbot is active. "
+            "鈥?Lock Main Aimbot X-Axis: Blocks physical mouse movement on X-axis when Main Aimbot is active. "
             "Only aimbot-controlled movements will be applied.\n\n"
-            "• Lock Main Aimbot Y-Axis: Blocks physical mouse movement on Y-axis when Main Aimbot is active. "
+            "鈥?Lock Main Aimbot Y-Axis: Blocks physical mouse movement on Y-axis when Main Aimbot is active. "
             "Only aimbot-controlled movements will be applied.\n\n"
-            "• Lock Sec Aimbot X-Axis: Blocks physical mouse movement on X-axis when Sec Aimbot is active. "
+            "鈥?Lock Sec Aimbot X-Axis: Blocks physical mouse movement on X-axis when Sec Aimbot is active. "
             "Only aimbot-controlled movements will be applied.\n\n"
-            "• Lock Sec Aimbot Y-Axis: Blocks physical mouse movement on Y-axis when Sec Aimbot is active. "
+            "鈥?Lock Sec Aimbot Y-Axis: Blocks physical mouse movement on Y-axis when Sec Aimbot is active. "
             "Only aimbot-controlled movements will be applied.\n\n"
             "Note: The lock will automatically release when the aimbot button is released or aimbot stops moving."
         )
@@ -595,10 +601,10 @@ class ViewerApp(ctk.CTk):
         self._add_switch_in_frame(sec_mouse_lock, "Lock Sec Aimbot Y-Axis", self.var_mouse_lock_sec_y, self._on_mouse_lock_sec_y_changed)
         self._checkbox_vars["mouse_lock_sec_y"] = self.var_mouse_lock_sec_y
         
-        # ── BUTTON MASK (collapsible) ──
+        # 鈹€鈹€ BUTTON MASK (collapsible) 鈹€鈹€
         sec_button_mask = self._create_collapsible_section(self.content_frame, "Button Mask", initially_open=False)
         
-        # Button Mask 總開關
+        # Button Mask 绺介枊闂?
         if not hasattr(self, 'var_button_mask_enabled'):
             self.var_button_mask_enabled = tk.BooleanVar(value=getattr(config, "button_mask_enabled", False))
         
@@ -644,14 +650,14 @@ class ViewerApp(ctk.CTk):
             else:
                 var = getattr(self, var_name)
             
-            # 使用更簡約的 Switch 風格
+            # 浣跨敤鏇寸啊绱勭殑 Switch 棰ㄦ牸
             btn_switch = ctk.CTkSwitch(
                 grid_frame,
                 text=label,
                 variable=var,
                 command=lambda k=key, v=var: self._on_button_mask_changed(k, v),
                 fg_color=COLOR_BORDER,
-                progress_color=COLOR_TEXT, # 統一黑白風格
+                progress_color=COLOR_TEXT, # 绲变竴榛戠櫧棰ㄦ牸
                 button_color=COLOR_TEXT,
                 button_hover_color=COLOR_ACCENT_HOVER,
                 text_color=COLOR_TEXT_DIM,
@@ -665,7 +671,7 @@ class ViewerApp(ctk.CTk):
             self._checkbox_vars[key] = var
 
     def _update_mouse_api_ui(self):
-        """根據選擇的滑鼠 API 更新 Hardware API 區塊。"""
+        """鏍规摎閬告搰鐨勬粦榧?API 鏇存柊 Hardware API 鍗€濉娿€?"""
         if not hasattr(self, "hardware_content_frame") or not self.hardware_content_frame.winfo_exists():
             return
 
@@ -1268,20 +1274,20 @@ class ViewerApp(ctk.CTk):
         self._set_status_indicator(f"Status: Mouse API timeout ({mode})", COLOR_DANGER)
 
     def _update_capture_ui(self):
-        """根據選擇的捕獲方法更新 UI"""
-        # 保存當前 UDP 輸入框的值（如果存在）
+        """鏍规摎閬告搰鐨勬崟鐛叉柟娉曟洿鏂?UI"""
+        # 淇濆瓨鐣跺墠 UDP 杓稿叆妗嗙殑鍊硷紙濡傛灉瀛樺湪锛?
         if hasattr(self, 'udp_ip_entry') and self.udp_ip_entry.winfo_exists():
             self.saved_udp_ip = self.udp_ip_entry.get()
         if hasattr(self, 'udp_port_entry') and self.udp_port_entry.winfo_exists():
             self.saved_udp_port = self.udp_port_entry.get()
         
-        # 保存當前 NDI 選擇的源（如果存在）
+        # 淇濆瓨鐣跺墠 NDI 閬告搰鐨勬簮锛堝鏋滃瓨鍦級
         if hasattr(self, 'source_option') and self.source_option.winfo_exists():
             current_selection = self.source_option.get()
             if current_selection not in ["(Scanning...)", "(no sources)"]:
                 self.saved_ndi_source = current_selection
         
-        # 清除舊的 UI 元素
+        # 娓呴櫎鑸婄殑 UI 鍏冪礌
         for widget in self.capture_content_frame.winfo_children():
             widget.destroy()
         
@@ -1308,9 +1314,9 @@ class ViewerApp(ctk.CTk):
             self.source_option = self._add_option_menu(["(Scanning...)"], self._on_source_selected, parent=self.capture_content_frame)
             self.source_option.pack(fill="x", pady=5)
             
-            # 如果有保存的 NDI 源，嘗試恢復
+            # 濡傛灉鏈変繚瀛樼殑 NDI 婧愶紝鍢楄│鎭㈠京
             if self.saved_ndi_source:
-                # 稍後在 _apply_sources_to_ui 中會更新源列表並恢復選擇
+                # 绋嶅緦鍦?_apply_sources_to_ui 涓渻鏇存柊婧愬垪琛ㄤ甫鎭㈠京閬告搰
                 pass
             
             btn_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
@@ -1318,7 +1324,7 @@ class ViewerApp(ctk.CTk):
             self._add_text_button(btn_frame, "REFRESH", self._refresh_sources).pack(side="left")
             self._add_text_button(btn_frame, "CONNECT", self._connect_to_selected).pack(side="left", padx=15)
             
-            # NDI FOV 裁切設定
+            # NDI FOV 瑁佸垏瑷畾
             self._add_spacer_in_frame(self.capture_content_frame)
             self._add_subtitle_in_frame(self.capture_content_frame, "CENTER CROP (FOV)")
             
@@ -1343,7 +1349,7 @@ class ViewerApp(ctk.CTk):
             )
             ndi_fov_switch.pack(side="right")
             
-            # FOV Slider (正方形裁切，只需要一個值)
+            # FOV Slider (姝ｆ柟褰㈣鍒囷紝鍙渶瑕佷竴鍊嬪€?
             fov_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
             fov_frame.pack(fill="x", pady=2)
             fov_header = ctk.CTkFrame(fov_frame, fg_color="transparent")
@@ -1370,7 +1376,7 @@ class ViewerApp(ctk.CTk):
             self.ndi_fov_entry.bind("<Return>", self._on_ndi_fov_entry_changed)
             self.ndi_fov_entry.bind("<FocusOut>", self._on_ndi_fov_entry_changed)
             
-            # 裁切範圍資訊
+            # 瑁佸垏绡勫湇璩囪▕
             total_size = init_fov * 2
             self.ndi_fov_info_label = ctk.CTkLabel(
                 self.capture_content_frame,
@@ -1383,25 +1389,25 @@ class ViewerApp(ctk.CTk):
             # UDP Controls
             self._add_subtitle_in_frame(self.capture_content_frame, "UDP SETTINGS")
             
-            # IP Input - 使用保存的值
+            # IP Input - 浣跨敤淇濆瓨鐨勫€?
             ip_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
             ip_frame.pack(fill="x", pady=5)
             ctk.CTkLabel(ip_frame, text="IP Address", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
             self.udp_ip_entry = ctk.CTkEntry(ip_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=150)
             self.udp_ip_entry.pack(side="right")
             self.udp_ip_entry.insert(0, self.saved_udp_ip)
-            # 綁定事件以實時保存
+            # 缍佸畾浜嬩欢浠ュ鏅備繚瀛?
             self.udp_ip_entry.bind("<KeyRelease>", self._on_udp_ip_changed)
             self.udp_ip_entry.bind("<FocusOut>", self._on_udp_ip_changed)
             
-            # Port Input - 使用保存的值
+            # Port Input - 浣跨敤淇濆瓨鐨勫€?
             port_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
             port_frame.pack(fill="x", pady=5)
             ctk.CTkLabel(port_frame, text="Port", font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
             self.udp_port_entry = ctk.CTkEntry(port_frame, fg_color=COLOR_SURFACE, border_width=0, text_color=COLOR_TEXT, width=150)
             self.udp_port_entry.pack(side="right")
             self.udp_port_entry.insert(0, self.saved_udp_port)
-            # 綁定事件以實時保存
+            # 缍佸畾浜嬩欢浠ュ鏅備繚瀛?
             self.udp_port_entry.bind("<KeyRelease>", self._on_udp_port_changed)
             self.udp_port_entry.bind("<FocusOut>", self._on_udp_port_changed)
             
@@ -1409,7 +1415,7 @@ class ViewerApp(ctk.CTk):
             btn_frame.pack(fill="x", pady=10)
             self._add_text_button(btn_frame, "CONNECT", self._connect_udp).pack(side="left")
             
-            # UDP FOV 裁切設定
+            # UDP FOV 瑁佸垏瑷畾
             self._add_spacer_in_frame(self.capture_content_frame)
             self._add_subtitle_in_frame(self.capture_content_frame, "CENTER CROP (FOV)")
             
@@ -1434,7 +1440,7 @@ class ViewerApp(ctk.CTk):
             )
             udp_fov_switch.pack(side="right")
             
-            # FOV Slider (正方形裁切，只需要一個值)
+            # FOV Slider (姝ｆ柟褰㈣鍒囷紝鍙渶瑕佷竴鍊嬪€?
             fov_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
             fov_frame.pack(fill="x", pady=2)
             fov_header = ctk.CTkFrame(fov_frame, fg_color="transparent")
@@ -1461,7 +1467,7 @@ class ViewerApp(ctk.CTk):
             self.udp_fov_entry.bind("<Return>", self._on_udp_fov_entry_changed)
             self.udp_fov_entry.bind("<FocusOut>", self._on_udp_fov_entry_changed)
             
-            # 裁切範圍資訊
+            # 瑁佸垏绡勫湇璩囪▕
             total_size = init_fov * 2
             self.udp_fov_info_label = ctk.CTkLabel(
                 self.capture_content_frame,
@@ -1541,7 +1547,7 @@ class ViewerApp(ctk.CTk):
             self.capture_card_range_y_entry.bind("<KeyRelease>", self._on_capture_card_range_keyrelease)
             self.capture_card_range_y_entry.bind("<FocusOut>", self._on_capture_card_range_focusout)
             
-            # 顯示中心點信息
+            # 椤ず涓績榛炰俊鎭?
             center_info_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
             center_info_frame.pack(fill="x", pady=5)
             self.capture_card_center_label = ctk.CTkLabel(
@@ -1551,7 +1557,7 @@ class ViewerApp(ctk.CTk):
                 text_color=COLOR_TEXT_DIM
             )
             self.capture_card_center_label.pack(side="left")
-            # 更新中心點顯示
+            # 鏇存柊涓績榛為’绀?
             self._update_capture_card_center_display()
             
             btn_frame = ctk.CTkFrame(self.capture_content_frame, fg_color="transparent")
@@ -1581,7 +1587,7 @@ class ViewerApp(ctk.CTk):
             self.mss_monitor_entry.bind("<KeyRelease>", self._on_mss_monitor_changed)
             self.mss_monitor_entry.bind("<FocusOut>", self._on_mss_monitor_changed)
             
-            # 可用螢幕列表資訊
+            # 鍙敤铻㈠箷鍒楄〃璩囪▕
             try:
                 from src.capture.mss_capture import MSSCapture, HAS_MSS
                 if HAS_MSS:
@@ -1658,7 +1664,7 @@ class ViewerApp(ctk.CTk):
             self.mss_fov_y_entry.bind("<Return>", self._on_mss_fov_y_entry_changed)
             self.mss_fov_y_entry.bind("<FocusOut>", self._on_mss_fov_y_entry_changed)
             
-            # 擷取範圍資訊
+            # 鎿峰彇绡勫湇璩囪▕
             total_w = init_fov_x * 2
             total_h = init_fov_y * 2
             self.mss_capture_info_label = ctk.CTkLabel(
@@ -1673,21 +1679,21 @@ class ViewerApp(ctk.CTk):
             self._add_text_button(btn_frame, "CONNECT", self._connect_mss).pack(side="left")
 
     def _on_udp_ip_changed(self, event=None):
-        """實時保存 UDP IP"""
+        """瀵︽檪淇濆瓨 UDP IP"""
         if hasattr(self, 'udp_ip_entry') and self.udp_ip_entry.winfo_exists():
             val = self.udp_ip_entry.get()
             self.saved_udp_ip = val
             config.udp_ip = val
 
     def _on_udp_port_changed(self, event=None):
-        """實時保存 UDP Port"""
+        """瀵︽檪淇濆瓨 UDP Port"""
         if hasattr(self, 'udp_port_entry') and self.udp_port_entry.winfo_exists():
             val = self.udp_port_entry.get()
             self.saved_udp_port = val
             config.udp_port = val
     
     def _on_capture_card_device_changed(self, event=None):
-        """實時保存 CaptureCard Device Index"""
+        """瀵︽檪淇濆瓨 CaptureCard Device Index"""
         if hasattr(self, 'capture_card_device_entry') and self.capture_card_device_entry.winfo_exists():
             try:
                 val = int(self.capture_card_device_entry.get())
@@ -1696,7 +1702,7 @@ class ViewerApp(ctk.CTk):
                 pass
     
     def _on_capture_card_resolution_changed(self, event=None):
-        """實時保存 CaptureCard Resolution"""
+        """瀵︽檪淇濆瓨 CaptureCard Resolution"""
         if hasattr(self, 'capture_card_width_entry') and hasattr(self, 'capture_card_height_entry'):
             if self.capture_card_width_entry.winfo_exists() and self.capture_card_height_entry.winfo_exists():
                 try:
@@ -1708,7 +1714,7 @@ class ViewerApp(ctk.CTk):
                     pass
     
     def _on_capture_card_fps_changed(self, event=None):
-        """實時保存 CaptureCard FPS"""
+        """瀵︽檪淇濆瓨 CaptureCard FPS"""
         if hasattr(self, 'capture_card_fps_entry') and self.capture_card_fps_entry.winfo_exists():
             try:
                 val = float(self.capture_card_fps_entry.get())
@@ -1738,44 +1744,44 @@ class ViewerApp(ctk.CTk):
             pass
     
     def _on_capture_card_range_keyrelease(self, event=None):
-        """在輸入過程中更新中心點顯示（不強制修改輸入框）"""
+        """鍦ㄨ几鍏ラ亷绋嬩腑鏇存柊涓績榛為’绀猴紙涓嶅挤鍒朵慨鏀硅几鍏ユ锛?"""
         if hasattr(self, 'capture_card_range_x_entry') and hasattr(self, 'capture_card_range_y_entry'):
             if self.capture_card_range_x_entry.winfo_exists() and self.capture_card_range_y_entry.winfo_exists():
                 try:
                     range_x_str = self.capture_card_range_x_entry.get()
                     range_y_str = self.capture_card_range_y_entry.get()
                     
-                    # 如果是空字符串，不處理（允許用戶清空輸入）
+                    # 濡傛灉鏄┖瀛楃涓诧紝涓嶈檿鐞嗭紙鍏佽ū鐢ㄦ埗娓呯┖杓稿叆锛?
                     if not range_x_str or not range_y_str:
                         return
                     
                     range_x = int(range_x_str)
                     range_y = int(range_y_str)
                     
-                    # 只更新中心點顯示，不更新配置（配置在失去焦點時更新）
-                    # 允許用戶輸入任何數字，驗證在失去焦點時進行
-                    # 更新中心點顯示（使用輸入的值，即使小於128也顯示）
+                    # 鍙洿鏂颁腑蹇冮粸椤ず锛屼笉鏇存柊閰嶇疆锛堥厤缃湪澶卞幓鐒﹂粸鏅傛洿鏂帮級
+                    # 鍏佽ū鐢ㄦ埗杓稿叆浠讳綍鏁稿瓧锛岄璀夊湪澶卞幓鐒﹂粸鏅傞€茶
+                    # 鏇存柊涓績榛為’绀猴紙浣跨敤杓稿叆鐨勫€硷紝鍗充娇灏忔柤128涔熼’绀猴級
                     self._update_capture_card_center_display_with_values(range_x, range_y)
                 except ValueError:
-                    # 如果輸入不是數字，不處理（允許用戶繼續輸入）
+                    # 濡傛灉杓稿叆涓嶆槸鏁稿瓧锛屼笉铏曠悊锛堝厑瑷辩敤鎴剁辜绾岃几鍏ワ級
                     pass
     
     def _on_capture_card_range_focusout(self, event=None):
-        """失去焦點時驗證並修正 CaptureCard Range"""
+        """澶卞幓鐒﹂粸鏅傞璀変甫淇 CaptureCard Range"""
         if hasattr(self, 'capture_card_range_x_entry') and hasattr(self, 'capture_card_range_y_entry'):
             if self.capture_card_range_x_entry.winfo_exists() and self.capture_card_range_y_entry.winfo_exists():
                 try:
                     range_x_str = self.capture_card_range_x_entry.get()
                     range_y_str = self.capture_card_range_y_entry.get()
                     
-                    # 如果是空字符串，恢復為默認值
+                    # 濡傛灉鏄┖瀛楃涓诧紝鎭㈠京鐐洪粯瑾嶅€?
                     if not range_x_str:
                         range_x = 128
                         self.capture_card_range_x_entry.delete(0, "end")
                         self.capture_card_range_x_entry.insert(0, "128")
                     else:
                         range_x = int(range_x_str)
-                        # 確保最低值為 128
+                        # 纰轰繚鏈€浣庡€肩偤 128
                         if range_x < 128:
                             range_x = 128
                             self.capture_card_range_x_entry.delete(0, "end")
@@ -1787,19 +1793,19 @@ class ViewerApp(ctk.CTk):
                         self.capture_card_range_y_entry.insert(0, "128")
                     else:
                         range_y = int(range_y_str)
-                        # 確保最低值為 128
+                        # 纰轰繚鏈€浣庡€肩偤 128
                         if range_y < 128:
                             range_y = 128
                             self.capture_card_range_y_entry.delete(0, "end")
                             self.capture_card_range_y_entry.insert(0, "128")
                     
-                    # 更新配置
+                    # 鏇存柊閰嶇疆
                     config.capture_range_x = range_x
                     config.capture_range_y = range_y
-                    # 更新中心點顯示
+                    # 鏇存柊涓績榛為’绀?
                     self._update_capture_card_center_display()
                 except ValueError:
-                    # 如果輸入不是數字，恢復為有效值
+                    # 濡傛灉杓稿叆涓嶆槸鏁稿瓧锛屾仮寰╃偤鏈夋晥鍊?
                     try:
                         current_x = int(getattr(config, "capture_range_x", 128))
                         if current_x < 128:
@@ -1824,29 +1830,29 @@ class ViewerApp(ctk.CTk):
                         self.capture_card_range_y_entry.insert(0, "128")
                         config.capture_range_y = 128
                     
-                    # 更新中心點顯示
+                    # 鏇存柊涓績榛為’绀?
                     self._update_capture_card_center_display()
     
     def _update_capture_card_center_display(self):
-        """更新 CaptureCard 中心點顯示（從 config 讀取）"""
+        """鏇存柊 CaptureCard 涓績榛為’绀猴紙寰?config 璁€鍙栵級"""
         if hasattr(self, 'capture_card_center_label') and self.capture_card_center_label.winfo_exists():
             try:
                 range_x = int(getattr(config, "capture_range_x", 128))
                 range_y = int(getattr(config, "capture_range_y", 128))
                 
-                # 確保最低值為 128
+                # 纰轰繚鏈€浣庡€肩偤 128
                 if range_x < 128:
                     range_x = 128
                 if range_y < 128:
                     range_y = 128
                 
-                # 如果範圍為 0 或未設置，使用默認值或分辨率
+                # 濡傛灉绡勫湇鐐?0 鎴栨湭瑷疆锛屼娇鐢ㄩ粯瑾嶅€兼垨鍒嗚鲸鐜?
                 if range_x <= 0:
                     range_x = max(128, int(getattr(config, "capture_width", 1920)))
                 if range_y <= 0:
                     range_y = max(128, int(getattr(config, "capture_height", 1080)))
                 
-                # 計算中心點：基於 range_x 和 range_y 的 X/2, Y/2
+                # 瑷堢畻涓績榛烇細鍩烘柤 range_x 鍜?range_y 鐨?X/2, Y/2
                 center_x = range_x // 2
                 center_y = range_y // 2
                 
@@ -1857,16 +1863,16 @@ class ViewerApp(ctk.CTk):
                 self.capture_card_center_label.configure(text="Center: (0, 0)")
     
     def _update_capture_card_center_display_with_values(self, range_x, range_y):
-        """更新 CaptureCard 中心點顯示（使用指定的值）"""
+        """鏇存柊 CaptureCard 涓績榛為’绀猴紙浣跨敤鎸囧畾鐨勫€硷級"""
         if hasattr(self, 'capture_card_center_label') and self.capture_card_center_label.winfo_exists():
             try:
-                # 使用傳入的值（即使小於128也顯示，讓用戶看到輸入的值）
+                # 浣跨敤鍌冲叆鐨勫€硷紙鍗充娇灏忔柤128涔熼’绀猴紝璁撶敤鎴剁湅鍒拌几鍏ョ殑鍊硷級
                 if range_x <= 0:
                     range_x = max(128, int(getattr(config, "capture_width", 1920)))
                 if range_y <= 0:
                     range_y = max(128, int(getattr(config, "capture_height", 1080)))
                 
-                # 計算中心點：基於 range_x 和 range_y 的 X/2, Y/2
+                # 瑷堢畻涓績榛烇細鍩烘柤 range_x 鍜?range_y 鐨?X/2, Y/2
                 center_x = range_x // 2
                 center_y = range_y // 2
                 
@@ -1889,14 +1895,14 @@ class ViewerApp(ctk.CTk):
         self._add_switch("Enable Anti-Smoke", self.var_anti_smoke, self._on_anti_smoke_changed)
         self._checkbox_vars["anti_smoke_enabled"] = self.var_anti_smoke
         
-        # ── OPERATION MODE (collapsible) ──
+        # 鈹€鈹€ OPERATION MODE (collapsible) 鈹€鈹€
         sec_mode = self._create_collapsible_section(self.content_frame, "Operation Mode", initially_open=True)
         self.mode_option = self._add_option_row_in_frame(sec_mode, "Mode", ["Normal", "Silent", "NCAF", "WindMouse", "Bezier"], self._on_mode_selected)
         self._option_widgets["mode"] = self.mode_option
         current_mode = getattr(config, "mode", "Normal")
         self.mode_option.set(current_mode)
         
-        # ── MODE PARAMETERS (collapsible) ──
+        # 鈹€鈹€ MODE PARAMETERS (collapsible) 鈹€鈹€
         sec_params = self._create_collapsible_section(self.content_frame, f"{current_mode} Parameters", initially_open=True)
         
         if current_mode == "Normal":
@@ -2020,7 +2026,7 @@ class ViewerApp(ctk.CTk):
                                       float(getattr(config, "fovsize", 300)),
                                       self._on_fovsize_changed)
         
-        # ── OFFSET (collapsible) ──
+        # 鈹€鈹€ OFFSET (collapsible) 鈹€鈹€
         sec_offset = self._create_collapsible_section(self.content_frame, "Offset", initially_open=False)
         self._add_slider_in_frame(sec_offset, "X-Offset", "aim_offsetX", -100, 100,
                                   float(getattr(config, "aim_offsetX", 0)),
@@ -2029,14 +2035,14 @@ class ViewerApp(ctk.CTk):
                                   float(getattr(config, "aim_offsetY", 0)),
                                   self._on_aim_offsetY_changed)
         
-        # ── AIM TYPE (collapsible) ──
+        # 鈹€鈹€ AIM TYPE (collapsible) 鈹€鈹€
         sec_aim_type = self._create_collapsible_section(self.content_frame, "Aim Type", initially_open=False)
         self.aim_type_option = self._add_option_row_in_frame(sec_aim_type, "Target", ["head", "body", "nearest"], self._on_aim_type_selected)
         self._option_widgets["aim_type"] = self.aim_type_option
         current_aim_type = getattr(config, "aim_type", "head")
         self.aim_type_option.set(current_aim_type)
         
-        # ── ACTIVATION (collapsible) ──
+        # 鈹€鈹€ ACTIVATION (collapsible) 鈹€鈹€
         sec_activation = self._create_collapsible_section(self.content_frame, "Activation", initially_open=False)
         self.aimbot_button_option = self._add_option_row_in_frame(sec_activation, "Keybind", list(BUTTONS.values()), self._on_aimbot_button_selected)
         self._option_widgets["selected_mouse_button"] = self.aimbot_button_option
@@ -2054,7 +2060,7 @@ class ViewerApp(ctk.CTk):
         self.aimbot_activation_type_option = self._add_option_row_in_frame(sec_activation, "Type", activation_types, self._on_aimbot_activation_type_selected)
         self._option_widgets["aimbot_activation_type"] = self.aimbot_activation_type_option
         current_activation_type = getattr(config, "aimbot_activation_type", "hold_enable")
-        # 反向映射：從配置值找到顯示名稱
+        # 鍙嶅悜鏄犲皠锛氬緸閰嶇疆鍊兼壘鍒伴’绀哄悕绋?
         for display_name, config_value in activation_type_map.items():
             if config_value == current_activation_type:
                 self.aimbot_activation_type_option.set(display_name)
@@ -2075,14 +2081,14 @@ class ViewerApp(ctk.CTk):
         self._add_switch("Enable Anti-Smoke", self.var_anti_smoke_sec, self._on_anti_smoke_sec_changed)
         self._checkbox_vars["anti_smoke_enabled_sec"] = self.var_anti_smoke_sec
         
-        # ── OPERATION MODE (collapsible) ──
+        # 鈹€鈹€ OPERATION MODE (collapsible) 鈹€鈹€
         sec_mode = self._create_collapsible_section(self.content_frame, "Operation Mode", initially_open=True)
         self.mode_option_sec = self._add_option_row_in_frame(sec_mode, "Mode", ["Normal", "Silent", "NCAF", "WindMouse", "Bezier"], self._on_mode_sec_selected)
         self._option_widgets["mode_sec"] = self.mode_option_sec
         current_mode_sec = getattr(config, "mode_sec", "Normal")
         self.mode_option_sec.set(current_mode_sec)
         
-        # ── MODE PARAMETERS (collapsible) ──
+        # 鈹€鈹€ MODE PARAMETERS (collapsible) 鈹€鈹€
         sec_params = self._create_collapsible_section(self.content_frame, f"{current_mode_sec} Parameters", initially_open=True)
         
         if current_mode_sec == "Normal":
@@ -2200,7 +2206,7 @@ class ViewerApp(ctk.CTk):
                                       float(getattr(config, "fovsize_sec", 150)),
                                       self._on_fovsize_sec_changed)
         
-        # ── OFFSET (collapsible) ──
+        # 鈹€鈹€ OFFSET (collapsible) 鈹€鈹€
         sec_offset = self._create_collapsible_section(self.content_frame, "Offset", initially_open=False)
         self._add_slider_in_frame(sec_offset, "X-Offset", "aim_offsetX_sec", -100, 100,
                                   float(getattr(config, "aim_offsetX_sec", 0)),
@@ -2209,14 +2215,14 @@ class ViewerApp(ctk.CTk):
                                   float(getattr(config, "aim_offsetY_sec", 0)),
                                   self._on_aim_offsetY_sec_changed)
         
-        # ── AIM TYPE (collapsible) ──
+        # 鈹€鈹€ AIM TYPE (collapsible) 鈹€鈹€
         sec_aim_type = self._create_collapsible_section(self.content_frame, "Aim Type", initially_open=False)
         self.aim_type_option_sec = self._add_option_row_in_frame(sec_aim_type, "Target", ["head", "body", "nearest"], self._on_aim_type_sec_selected)
         self._option_widgets["aim_type_sec"] = self.aim_type_option_sec
         current_aim_type_sec = getattr(config, "aim_type_sec", "head")
         self.aim_type_option_sec.set(current_aim_type_sec)
         
-        # ── ACTIVATION (collapsible) ──
+        # 鈹€鈹€ ACTIVATION (collapsible) 鈹€鈹€
         sec_activation = self._create_collapsible_section(self.content_frame, "Activation", initially_open=False)
         self.aimbot_button_option_sec = self._add_option_row_in_frame(sec_activation, "Keybind", list(BUTTONS.values()), self._on_aimbot_button_sec_selected)
         self._option_widgets["selected_mouse_button_sec"] = self.aimbot_button_option_sec
@@ -2234,7 +2240,7 @@ class ViewerApp(ctk.CTk):
         self.aimbot_activation_type_option_sec = self._add_option_row_in_frame(sec_activation, "Type", activation_types, self._on_aimbot_activation_type_sec_selected)
         self._option_widgets["aimbot_activation_type_sec"] = self.aimbot_activation_type_option_sec
         current_activation_type_sec = getattr(config, "aimbot_activation_type_sec", "hold_enable")
-        # 反向映射：從配置值找到顯示名稱
+        # 鍙嶅悜鏄犲皠锛氬緸閰嶇疆鍊兼壘鍒伴’绀哄悕绋?
         for display_name, config_value in activation_type_map.items():
             if config_value == current_activation_type_sec:
                 self.aimbot_activation_type_option_sec.set(display_name)
@@ -2252,12 +2258,12 @@ class ViewerApp(ctk.CTk):
         
         self._add_spacer()
         self._add_subtitle("PARAMETERS")
-        # 從 config 讀取當前值
+        # 寰?config 璁€鍙栫暥鍓嶅€?
         self._add_slider("FOV Size", "tbfovsize", 1, 300, 
                         float(getattr(config, "tbfovsize", 70)), 
                         self._on_tbfovsize_changed)
         
-        # Delay Range (雙滑塊)
+        # Delay Range (闆欐粦濉?
         self._add_range_slider(
             "Delay Range (s)", 
             "tbdelay", 
@@ -2268,7 +2274,7 @@ class ViewerApp(ctk.CTk):
             is_float=True
         )
         
-        # Hold Range (雙滑塊)
+        # Hold Range (闆欐粦濉?
         self._add_range_slider(
             "Hold Range (ms)", 
             "tbhold", 
@@ -2278,11 +2284,39 @@ class ViewerApp(ctk.CTk):
             self._on_tbhold_range_changed,
             is_float=False
         )
+
+        self._add_slider(
+            "Min Pixels",
+            "trigger_min_pixels",
+            1,
+            200,
+            int(getattr(config, "trigger_min_pixels", 4)),
+            self._on_trigger_min_pixels_changed,
+            is_float=False,
+        )
+        self._add_slider(
+            "Min Ratio",
+            "trigger_min_ratio",
+            0.0,
+            1.0,
+            float(getattr(config, "trigger_min_ratio", 0.03)),
+            self._on_trigger_min_ratio_changed,
+            is_float=True,
+        )
+        self._add_slider(
+            "Confirm Frames",
+            "trigger_confirm_frames",
+            1,
+            10,
+            int(getattr(config, "trigger_confirm_frames", 2)),
+            self._on_trigger_confirm_frames_changed,
+            is_float=False,
+        )
         
         self._add_spacer()
         self._add_subtitle("BURST SETTINGS")
         
-        # Cooldown Range (雙滑塊)
+        # Cooldown Range (闆欐粦濉?
         self._add_range_slider(
             "Cooldown Range (s)", 
             "tbcooldown", 
@@ -2293,7 +2327,7 @@ class ViewerApp(ctk.CTk):
             is_float=True
         )
         
-        # Burst Count Range (雙滑塊)
+        # Burst Count Range (闆欐粦濉?
         self._add_range_slider(
             "Burst Count Range", 
             "tbburst_count", 
@@ -2304,7 +2338,7 @@ class ViewerApp(ctk.CTk):
             is_float=False
         )
         
-        # Burst Interval Range (雙滑塊)
+        # Burst Interval Range (闆欐粦濉?
         self._add_range_slider(
             "Burst Interval Range (ms)", 
             "tbburst_interval", 
@@ -2319,16 +2353,35 @@ class ViewerApp(ctk.CTk):
         self._add_subtitle("ACTIVATION")
         self.tb_button_option = self._add_option_row("Keybind", list(BUTTONS.values()), self._on_tb_button_selected)
         self._option_widgets["selected_tb_btn"] = self.tb_button_option
-        # 設置當前值
+        # 瑷疆鐣跺墠鍊?
         current_tb_btn = getattr(config, "selected_tb_btn", 3)
         self.tb_button_option.set(BUTTONS.get(current_tb_btn, BUTTONS[3]))
 
+        trigger_activation_types = ["Hold to Enable", "Hold to Disable", "Toggle"]
+        self.trigger_activation_type_option = self._add_option_row(
+            "Trigger Mode",
+            trigger_activation_types,
+            self._on_trigger_activation_type_selected,
+        )
+        self._option_widgets["trigger_activation_type"] = self.trigger_activation_type_option
+        current_trigger_activation_type = str(
+            getattr(config, "trigger_activation_type", "hold_enable")
+        ).strip().lower()
+        trigger_activation_display = {
+            "hold_enable": "Hold to Enable",
+            "hold_disable": "Hold to Disable",
+            "toggle": "Toggle",
+        }
+        self.trigger_activation_type_option.set(
+            trigger_activation_display.get(current_trigger_activation_type, "Hold to Enable")
+        )
+
     def _show_rcs_tab(self):
-        """顯示 RCS 設置標籤"""
+        """椤ず RCS 瑷疆妯欑堡"""
         self._clear_content()
         self._add_title("RCS (Recoil Control System)")
         
-        # RCS 開關
+        # RCS 闁嬮棞
         self.var_enablercs = tk.BooleanVar(value=getattr(config, "enablercs", False))
         self._add_switch("Enable RCS", self.var_enablercs, self._on_enablercs_changed)
         self._checkbox_vars["enablercs"] = self.var_enablercs
@@ -2336,7 +2389,7 @@ class ViewerApp(ctk.CTk):
         self._add_spacer()
         self._add_subtitle("PARAMETERS")
         
-        # Pull Speed (單滑塊)
+        # Pull Speed (鍠粦濉?
         self._add_slider(
             "Pull Speed", 
             "rcs_pull_speed", 
@@ -2346,7 +2399,7 @@ class ViewerApp(ctk.CTk):
             is_float=False
         )
         
-        # Activation Delay (單滑塊)
+        # Activation Delay (鍠粦濉?
         self._add_slider(
             "Activation Delay (ms)", 
             "rcs_activation_delay", 
@@ -2356,7 +2409,7 @@ class ViewerApp(ctk.CTk):
             is_float=False
         )
         
-        # Rapid Click Threshold (單滑塊)
+        # Rapid Click Threshold (鍠粦濉?
         self._add_slider(
             "Rapid Click Threshold (ms)", 
             "rcs_rapid_click_threshold", 
@@ -2369,12 +2422,12 @@ class ViewerApp(ctk.CTk):
         self._add_spacer()
         self._add_subtitle("Y-AXIS RELEASE")
         
-        # Release Y-Axis on Fire 開關
+        # Release Y-Axis on Fire 闁嬮棞
         self.var_rcs_release_y_enabled = tk.BooleanVar(value=getattr(config, "rcs_release_y_enabled", False))
         self._add_switch("Release Y-Axis on Fire", self.var_rcs_release_y_enabled, self._on_rcs_release_y_enabled_changed)
         self._checkbox_vars["rcs_release_y_enabled"] = self.var_rcs_release_y_enabled
         
-        # Release Duration (單滑塊)
+        # Release Duration (鍠粦濉?
         self._add_slider(
             "Release Duration (s)", 
             "rcs_release_y_duration", 
@@ -2413,7 +2466,7 @@ class ViewerApp(ctk.CTk):
         self._refresh_config_list()
 
     def _show_debug_tab(self):
-        """顯示 Debug tab - 顯示滑鼠移動和點擊日誌"""
+        """椤ず Debug tab - 椤ず婊戦紶绉诲嫊鍜岄粸鎿婃棩瑾?"""
         self._clear_content()
         self._add_title("Debug")
         
@@ -2564,7 +2617,7 @@ class ViewerApp(ctk.CTk):
         # Initialize log display
         self._update_debug_log()
 
-    # --- 極簡組件構建器 ---
+    # --- 妤电啊绲勪欢妲嬪缓鍣?---
 
     def _add_title(self, text):
         ctk.CTkLabel(self.content_frame, text=text, font=FONT_TITLE, text_color=COLOR_TEXT).pack(anchor="w", pady=(0, 20))
@@ -2576,34 +2629,34 @@ class ViewerApp(ctk.CTk):
         ctk.CTkLabel(parent, text=text.upper(), font=("Roboto", 10, "bold"), text_color=COLOR_TEXT_DIM).pack(anchor="w", pady=(10, 5))
     
     def _add_spacer_in_frame(self, parent):
-        """在指定 frame 中添加間距"""
+        """鍦ㄦ寚瀹?frame 涓坊鍔犻枔璺?"""
         ctk.CTkFrame(parent, height=1, fg_color="transparent").pack(pady=5)
     
     def _create_tooltip(self, widget, text):
         """
-        為 widget 創建 tooltip
+        鐐?widget 鍓靛缓 tooltip
         
         Args:
-            widget: 要綁定 tooltip 的 widget
-            text: tooltip 文字內容
+            widget: 瑕佺秮瀹?tooltip 鐨?widget
+            text: tooltip 鏂囧瓧鍏у
         """
-        tooltip_window = [None]  # 使用列表以便在嵌套函數中修改
+        tooltip_window = [None]  # 浣跨敤鍒楄〃浠ヤ究鍦ㄥ祵濂楀嚱鏁镐腑淇敼
         
         def show_tooltip(event):
             if tooltip_window[0] is not None:
                 return
             
-            # 獲取鼠標位置
+            # 鐛插彇榧犳浣嶇疆
             x = event.x_root + 10
             y = event.y_root + 10
             
-            # 創建 tooltip 窗口
+            # 鍓靛缓 tooltip 绐楀彛
             tooltip_win = ctk.CTkToplevel(widget)
             tooltip_win.overrideredirect(True)
             tooltip_win.attributes("-topmost", True)
             tooltip_win.configure(fg_color=COLOR_BG)
             
-            # 創建 tooltip 內容
+            # 鍓靛缓 tooltip 鍏у
             tooltip_frame = ctk.CTkFrame(tooltip_win, fg_color=COLOR_SURFACE, corner_radius=4)
             tooltip_frame.pack(fill="both", expand=True, padx=1, pady=1)
             
@@ -2618,7 +2671,7 @@ class ViewerApp(ctk.CTk):
             )
             tooltip_label.pack(anchor="w", padx=12, pady=10)
             
-            # 更新窗口大小並設置位置
+            # 鏇存柊绐楀彛澶у皬涓﹁ō缃綅缃?
             tooltip_win.update_idletasks()
             tooltip_win.geometry(f"+{x}+{y}")
             
@@ -2637,17 +2690,17 @@ class ViewerApp(ctk.CTk):
 
     def _create_collapsible_section(self, parent, title, initially_open=True, auto_pack=True, tooltip_text=None):
         """
-        建立可展開/收起的 section。
+        寤虹珛鍙睍闁?鏀惰捣鐨?section銆?
         
         Args:
-            parent: 父容器
-            title: section 標題
-            initially_open: 是否預設展開
-            auto_pack: 是否自動 pack container（False 時由調用者控制）
-            tooltip_text: 可選的 tooltip 文字（如果提供，會在標題旁顯示問號圖標）
+            parent: 鐖跺鍣?
+            title: section 妯欓
+            initially_open: 鏄惁闋愯ō灞曢枊
+            auto_pack: 鏄惁鑷嫊 pack container锛團alse 鏅傜敱瑾跨敤鑰呮帶鍒讹級
+            tooltip_text: 鍙伕鐨?tooltip 鏂囧瓧锛堝鏋滄彁渚涳紝鏈冨湪妯欓鏃侀’绀哄晱铏熷湒妯欙級
             
         Returns:
-            tuple: (content_frame, container) 如果 auto_pack=False，否則只返回 content_frame
+            tuple: (content_frame, container) 濡傛灉 auto_pack=False锛屽惁鍓囧彧杩斿洖 content_frame
         """
         container = ctk.CTkFrame(parent, fg_color="transparent")
         if auto_pack:
@@ -2673,7 +2726,7 @@ class ViewerApp(ctk.CTk):
         )
         title_label.pack(side="left", padx=(4, 0))
         
-        # 如果有 tooltip 文字，添加問號圖標
+        # 濡傛灉鏈?tooltip 鏂囧瓧锛屾坊鍔犲晱铏熷湒妯?
         if tooltip_text:
             tooltip_icon = ctk.CTkLabel(
                 header, text="?", font=("Roboto", 10, "bold"), text_color=COLOR_TEXT_DIM,
@@ -2705,7 +2758,7 @@ class ViewerApp(ctk.CTk):
             return content, container
 
     def _add_slider_in_frame(self, parent, text, key, min_val, max_val, init_val, command, is_float=False):
-        """在指定 parent frame 中添加 slider（與 _add_slider 邏輯一致）"""
+        """鍦ㄦ寚瀹?parent frame 涓坊鍔?slider锛堣垏 _add_slider 閭忚集涓€鑷达級"""
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="x", pady=2)
         
@@ -2738,7 +2791,7 @@ class ViewerApp(ctk.CTk):
         self._register_slider(key, slider, val_entry, min_val, max_val, is_float)
 
     def _add_option_row_in_frame(self, parent, label_text, values, command):
-        """在指定 parent frame 中添加 OptionMenu（與 _add_option_row 邏輯一致）"""
+        """鍦ㄦ寚瀹?parent frame 涓坊鍔?OptionMenu锛堣垏 _add_option_row 閭忚集涓€鑷达級"""
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="x", pady=5)
         frame.grid_columnconfigure(0, weight=1)
@@ -2749,7 +2802,7 @@ class ViewerApp(ctk.CTk):
         return menu
 
     def _add_switch_in_frame(self, parent, text, variable, command):
-        """在指定 parent frame 中添加 Switch"""
+        """鍦ㄦ寚瀹?parent frame 涓坊鍔?Switch"""
         switch = ctk.CTkSwitch(
             parent, text=text, variable=variable, command=command,
             progress_color=COLOR_TEXT, fg_color=COLOR_BORDER,
@@ -2768,7 +2821,7 @@ class ViewerApp(ctk.CTk):
             text=text, 
             variable=variable, 
             command=command,
-            progress_color=COLOR_TEXT, # 黑白風格
+            progress_color=COLOR_TEXT, # 榛戠櫧棰ㄦ牸
             fg_color=COLOR_BORDER,
             button_color=COLOR_TEXT,
             button_hover_color=COLOR_TEXT,
@@ -2782,12 +2835,12 @@ class ViewerApp(ctk.CTk):
         frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         frame.pack(fill="x", pady=2)
         
-        # 標籤與輸入框同在一行
+        # 妯欑堡鑸囪几鍏ユ鍚屽湪涓€琛?
         header = ctk.CTkFrame(frame, fg_color="transparent")
         header.pack(fill="x")
         ctk.CTkLabel(header, text=text, font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
         
-        # 可編輯的輸入框（替換原本的 Label）
+        # 鍙法杓殑杓稿叆妗嗭紙鏇挎彌鍘熸湰鐨?Label锛?
         val_str = f"{init_val:.2f}" if is_float else f"{int(init_val)}"
         val_entry = ctk.CTkEntry(
             header, 
@@ -2819,24 +2872,24 @@ class ViewerApp(ctk.CTk):
         slider.set(init_val)
         slider.pack(fill="x", pady=(2, 5))
         
-        # 綁定輸入框的事件
+        # 缍佸畾杓稿叆妗嗙殑浜嬩欢
         val_entry.bind("<Return>", lambda e: self._on_entry_changed(val_entry, slider, key, command, is_float, min_val, max_val))
         val_entry.bind("<FocusOut>", lambda e: self._on_entry_changed(val_entry, slider, key, command, is_float, min_val, max_val))
         
-        # 註冊 slider（保存 entry 引用而不是 label）
+        # 瑷诲唺 slider锛堜繚瀛?entry 寮曠敤鑰屼笉鏄?label锛?
         self._register_slider(key, slider, val_entry, min_val, max_val, is_float)
     
     def _add_range_slider(self, text, key, min_val, max_val, init_min, init_max, command, is_float=False):
-        """添加範圍滑塊（雙滑塊）"""
+        """娣诲姞绡勫湇婊戝锛堥洐婊戝锛?"""
         frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         frame.pack(fill="x", pady=2)
         
-        # 標籤與兩個輸入框
+        # 妯欑堡鑸囧叐鍊嬭几鍏ユ
         header = ctk.CTkFrame(frame, fg_color="transparent")
         header.pack(fill="x")
         ctk.CTkLabel(header, text=text, font=FONT_MAIN, text_color=COLOR_TEXT).pack(side="left")
         
-        # Max 輸入框（右邊）
+        # Max 杓稿叆妗嗭紙鍙抽倞锛?
         max_str = f"{init_max:.2f}" if is_float else f"{int(init_max)}"
         max_entry = ctk.CTkEntry(
             header, 
@@ -2852,10 +2905,10 @@ class ViewerApp(ctk.CTk):
         max_entry.insert(0, max_str)
         max_entry.pack(side="right", padx=2)
         
-        # 連接符號
+        # 閫ｆ帴绗﹁櫉
         ctk.CTkLabel(header, text="~", font=("Roboto", 10), text_color=COLOR_TEXT_DIM).pack(side="right")
         
-        # Min 輸入框（左邊）
+        # Min 杓稿叆妗嗭紙宸﹂倞锛?
         min_str = f"{init_min:.2f}" if is_float else f"{int(init_min)}"
         min_entry = ctk.CTkEntry(
             header, 
@@ -2871,11 +2924,11 @@ class ViewerApp(ctk.CTk):
         min_entry.insert(0, min_str)
         min_entry.pack(side="right", padx=2)
         
-        # 滑塊容器
+        # 婊戝瀹瑰櫒
         slider_frame = ctk.CTkFrame(frame, fg_color="transparent")
         slider_frame.pack(fill="x", pady=(2, 5))
         
-        # Min 滑塊（上面）
+        # Min 婊戝锛堜笂闈級
         min_slider = ctk.CTkSlider(
             slider_frame, 
             from_=min_val, 
@@ -2891,7 +2944,7 @@ class ViewerApp(ctk.CTk):
         min_slider.set(init_min)
         min_slider.pack(fill="x", pady=1)
         
-        # Max 滑塊（下面）
+        # Max 婊戝锛堜笅闈級
         max_slider = ctk.CTkSlider(
             slider_frame, 
             from_=min_val, 
@@ -2907,13 +2960,13 @@ class ViewerApp(ctk.CTk):
         max_slider.set(init_max)
         max_slider.pack(fill="x", pady=1)
         
-        # 綁定輸入框事件
+        # 缍佸畾杓稿叆妗嗕簨浠?
         min_entry.bind("<Return>", lambda e: self._on_range_entry_changed(min_entry, max_entry, min_slider, max_slider, key, command, is_float, min_val, max_val))
         min_entry.bind("<FocusOut>", lambda e: self._on_range_entry_changed(min_entry, max_entry, min_slider, max_slider, key, command, is_float, min_val, max_val))
         max_entry.bind("<Return>", lambda e: self._on_range_entry_changed(min_entry, max_entry, min_slider, max_slider, key, command, is_float, min_val, max_val))
         max_entry.bind("<FocusOut>", lambda e: self._on_range_entry_changed(min_entry, max_entry, min_slider, max_slider, key, command, is_float, min_val, max_val))
         
-        # 註冊範圍滑塊
+        # 瑷诲唺绡勫湇婊戝
         if not hasattr(self, '_range_slider_widgets'):
             self._range_slider_widgets = {}
         self._range_slider_widgets[key] = {
@@ -2927,11 +2980,11 @@ class ViewerApp(ctk.CTk):
         }
     
     def _on_range_slider_changed(self, value, slider_type, min_entry, max_entry, min_slider, max_slider, key, command, is_float, range_min, range_max):
-        """當範圍滑塊改變時更新"""
+        """鐣剁瘎鍦嶆粦濉婃敼璁婃檪鏇存柊"""
         val = float(value) if is_float else int(round(value))
         
         if slider_type == "min":
-            # 確保 min 不大於 max
+            # 纰轰繚 min 涓嶅ぇ鏂?max
             max_val = max_slider.get()
             if is_float:
                 max_val = float(max_val)
@@ -2942,11 +2995,11 @@ class ViewerApp(ctk.CTk):
                 val = max_val
                 min_slider.set(val)
             
-            # 更新輸入框
+            # 鏇存柊杓稿叆妗?
             min_entry.delete(0, "end")
             min_entry.insert(0, f"{val:.2f}" if is_float else f"{val}")
         else:  # max
-            # 確保 max 不小於 min
+            # 纰轰繚 max 涓嶅皬鏂?min
             min_val = min_slider.get()
             if is_float:
                 min_val = float(min_val)
@@ -2957,11 +3010,11 @@ class ViewerApp(ctk.CTk):
                 val = min_val
                 max_slider.set(val)
             
-            # 更新輸入框
+            # 鏇存柊杓稿叆妗?
             max_entry.delete(0, "end")
             max_entry.insert(0, f"{val:.2f}" if is_float else f"{val}")
         
-        # 調用回調
+        # 瑾跨敤鍥炶
         min_v = min_slider.get()
         max_v = max_slider.get()
         if is_float:
@@ -2970,33 +3023,33 @@ class ViewerApp(ctk.CTk):
             command(int(round(min_v)), int(round(max_v)))
     
     def _on_range_entry_changed(self, min_entry, max_entry, min_slider, max_slider, key, command, is_float, range_min, range_max):
-        """當範圍輸入框改變時更新滑塊"""
+        """鐣剁瘎鍦嶈几鍏ユ鏀硅畩鏅傛洿鏂版粦濉?"""
         try:
             min_val = float(min_entry.get()) if is_float else int(float(min_entry.get()))
             max_val = float(max_entry.get()) if is_float else int(float(max_entry.get()))
             
-            # 限制範圍
+            # 闄愬埗绡勫湇
             min_val = max(range_min, min(min_val, range_max))
             max_val = max(range_min, min(max_val, range_max))
             
-            # 確保 min <= max
+            # 纰轰繚 min <= max
             if min_val > max_val:
                 min_val, max_val = max_val, min_val
             
-            # 更新滑塊
+            # 鏇存柊婊戝
             min_slider.set(min_val)
             max_slider.set(max_val)
             
-            # 更新輸入框顯示
+            # 鏇存柊杓稿叆妗嗛’绀?
             min_entry.delete(0, "end")
             min_entry.insert(0, f"{min_val:.2f}" if is_float else f"{min_val}")
             max_entry.delete(0, "end")
             max_entry.insert(0, f"{max_val:.2f}" if is_float else f"{max_val}")
             
-            # 調用回調
+            # 瑾跨敤鍥炶
             command(min_val, max_val)
         except ValueError:
-            # 無效輸入，恢復到當前滑塊值
+            # 鐒℃晥杓稿叆锛屾仮寰╁埌鐣跺墠婊戝鍊?
             min_val = min_slider.get()
             max_val = max_slider.get()
             if is_float:
@@ -3010,45 +3063,45 @@ class ViewerApp(ctk.CTk):
             max_entry.insert(0, f"{max_val:.2f}" if is_float else f"{max_val}")
 
     def _on_slider_changed(self, value, entry_widget, key, command, is_float, slider, min_val, max_val):
-        """當滑條改變時更新輸入框"""
+        """鐣舵粦姊濇敼璁婃檪鏇存柊杓稿叆妗?"""
         val = float(value) if is_float else int(round(value))
-        # 限制範圍
+        # 闄愬埗绡勫湇
         val = max(min_val, min(val, max_val))
         
-        # 更新輸入框
+        # 鏇存柊杓稿叆妗?
         entry_widget.delete(0, "end")
         entry_widget.insert(0, f"{val:.2f}" if is_float else f"{val}")
         
-        # 調用原始 command
+        # 瑾跨敤鍘熷 command
         command(val)
 
     def _on_entry_changed(self, entry_widget, slider, key, command, is_float, min_val, max_val):
-        """當輸入框改變時更新滑條"""
+        """鐣惰几鍏ユ鏀硅畩鏅傛洿鏂版粦姊?"""
         try:
             text = entry_widget.get()
             val = float(text) if is_float else int(float(text))
             
-            # 限制範圍
+            # 闄愬埗绡勫湇
             val = max(min_val, min(val, max_val))
             
-            # 更新滑條
+            # 鏇存柊婊戞
             slider.set(val)
             
-            # 更新輸入框顯示（格式化）
+            # 鏇存柊杓稿叆妗嗛’绀猴紙鏍煎紡鍖栵級
             entry_widget.delete(0, "end")
             entry_widget.insert(0, f"{val:.2f}" if is_float else f"{val}")
             
-            # 調用原始 command
+            # 瑾跨敤鍘熷 command
             command(val)
         except ValueError:
-            # 如果輸入無效，恢復到滑條當前值
+            # 濡傛灉杓稿叆鐒℃晥锛屾仮寰╁埌婊戞鐣跺墠鍊?
             current_val = slider.get()
             val = float(current_val) if is_float else int(round(current_val))
             entry_widget.delete(0, "end")
             entry_widget.insert(0, f"{val:.2f}" if is_float else f"{val}")
 
     def _add_option_menu(self, values, command, parent=None):
-        """創建獨立的 OptionMenu"""
+        """鍓靛缓鐛ㄧ珛鐨?OptionMenu"""
         target_parent = parent if parent else self.content_frame
         return ctk.CTkOptionMenu(
             target_parent,
@@ -3065,7 +3118,7 @@ class ViewerApp(ctk.CTk):
         )
 
     def _add_option_row(self, label_text, values, command):
-        """創建帶標籤的行內 OptionMenu"""
+        """鍓靛缓甯舵绫ょ殑琛屽収 OptionMenu"""
         frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         frame.pack(fill="x", pady=5)
         
@@ -3095,7 +3148,7 @@ class ViewerApp(ctk.CTk):
             command=command
         )
 
-    # --- 邏輯功能 ---
+    # --- 閭忚集鍔熻兘 ---
 
     def start_move(self, event):
         self._x = event.x
@@ -3118,7 +3171,7 @@ class ViewerApp(ctk.CTk):
         except: return
         v = max(w["min"], min(v, w["max"]))
         w["slider"].set(v)
-        # 更新輸入框而不是標籤
+        # 鏇存柊杓稿叆妗嗚€屼笉鏄绫?
         w["entry"].delete(0, "end")
         w["entry"].insert(0, f"{v:.2f}" if is_float else f"{v}")
 
@@ -3128,24 +3181,33 @@ class ViewerApp(ctk.CTk):
 
     def _set_option_value(self, key, value_str):
         menu = self._option_widgets.get(key)
-        if menu and value_str: menu.set(str(value_str))
+        if not menu or value_str is None:
+            return
+        try:
+            if hasattr(menu, "winfo_exists") and not bool(menu.winfo_exists()):
+                self._option_widgets.pop(key, None)
+                return
+            menu.set(str(value_str))
+        except Exception:
+            # Widget was likely destroyed while switching tabs.
+            self._option_widgets.pop(key, None)
 
     def _set_btn_option_value(self, key, value_str):
         self._set_option_value(key, value_str)
 
     def _get_current_settings(self):
-        """獲取當前所有設置 - 直接使用 config.to_dict() 確保一致性"""
+        """鐛插彇鐣跺墠鎵€鏈夎ō缃?- 鐩存帴浣跨敤 config.to_dict() 纰轰繚涓€鑷存€?"""
         return config.to_dict()
 
     def _load_initial_config(self):
-        """初始化時載入配置並應用到所有 UI 元素"""
+        """鍒濆鍖栨檪杓夊叆閰嶇疆涓︽噳鐢ㄥ埌鎵€鏈?UI 鍏冪礌"""
         try:
-            # 配置已經在 config.py 的 __init__ 中自動載入了
-            # 現在需要將配置同步到 tracker 和 UI
+            # 閰嶇疆宸茬稉鍦?config.py 鐨?__init__ 涓嚜鍕曡級鍏ヤ簡
+            # 鐝惧湪闇€瑕佸皣閰嶇疆鍚屾鍒?tracker 鍜?UI
             self._sync_config_to_tracker()
             
-            # 重新顯示當前頁面以更新 UI 元素
-            # 這會確保所有 slider、checkbox、option menu 都顯示正確的值
+            # 閲嶆柊椤ず鐣跺墠闋侀潰浠ユ洿鏂?UI 鍏冪礌
+            # 閫欐渻纰轰繚鎵€鏈?slider銆乧heckbox銆乷ption menu 閮介’绀烘纰虹殑鍊?
             self._handle_nav_click("General", self._show_general_tab)
             
             log_print("[UI] Configuration loaded")
@@ -3153,9 +3215,9 @@ class ViewerApp(ctk.CTk):
             log_print(f"[UI] Init load error: {e}")
     
     def _sync_config_to_tracker(self):
-        """將 config 中的值同步到 tracker"""
+        """灏?config 涓殑鍊煎悓姝ュ埌 tracker"""
         try:
-            # 同步所有參數
+            # 鍚屾鎵€鏈夊弮鏁?
             self.tracker.normal_x_speed = config.normal_x_speed
             self.tracker.normal_y_speed = config.normal_y_speed
             self.tracker.normalsmooth = config.normalsmooth
@@ -3173,6 +3235,15 @@ class ViewerApp(ctk.CTk):
             self.tracker.tbburst_count_max = config.tbburst_count_max
             self.tracker.tbburst_interval_min = config.tbburst_interval_min
             self.tracker.tbburst_interval_max = config.tbburst_interval_max
+            self.tracker.trigger_roi_size = getattr(config, "trigger_roi_size", 8)
+            self.tracker.trigger_min_pixels = getattr(config, "trigger_min_pixels", 4)
+            self.tracker.trigger_min_ratio = getattr(config, "trigger_min_ratio", 0.03)
+            self.tracker.trigger_confirm_frames = getattr(config, "trigger_confirm_frames", 2)
+            self.tracker.switch_confirm_frames = getattr(config, "switch_confirm_frames", 3)
+            self.tracker.ema_alpha = getattr(config, "ema_alpha", 0.35)
+            if hasattr(self.tracker, "_target_smoother"):
+                self.tracker._target_smoother.switch_confirm_frames = int(self.tracker.switch_confirm_frames)
+                self.tracker._target_smoother.ema_alpha = float(self.tracker.ema_alpha)
             self.tracker.rcs_pull_speed = config.rcs_pull_speed
             self.tracker.rcs_activation_delay = config.rcs_activation_delay
             self.tracker.rcs_rapid_click_threshold = config.rcs_rapid_click_threshold
@@ -3185,6 +3256,8 @@ class ViewerApp(ctk.CTk):
             self.tracker.color = config.color
             self.tracker.mode = config.mode
             self.tracker.mode_sec = getattr(config, "mode_sec", "Normal")
+            self.tracker.selected_mouse_button = config.selected_mouse_button
+            self.tracker.selected_mouse_button_sec = config.selected_mouse_button_sec
             
             # Update target FPS
             target_fps = getattr(config, "target_fps", 80)
@@ -3218,10 +3291,17 @@ class ViewerApp(ctk.CTk):
                 if k in self._option_widgets: 
                     if k in ["selected_mouse_button", "selected_tb_btn", "selected_mouse_button_sec"]:
                         self._set_btn_option_value(k, BUTTONS.get(v, str(v)))
+                    elif k == "trigger_activation_type":
+                        trigger_activation_display = {
+                            "hold_enable": "Hold to Enable",
+                            "hold_disable": "Hold to Disable",
+                            "toggle": "Toggle",
+                        }
+                        self._set_option_value(k, trigger_activation_display.get(str(v), "Hold to Enable"))
                     else:
                         self._set_option_value(k, v)
                 
-                # 更新 OpenCV 顯示設置的 UI 變量
+                # 鏇存柊 OpenCV 椤ず瑷疆鐨?UI 璁婇噺
                 if k == "show_opencv_windows" and hasattr(self, "show_opencv_var"):
                     self.show_opencv_var.set(v)
                 elif k == "show_mode_text" and hasattr(self, "show_mode_var"):
@@ -3236,7 +3316,7 @@ class ViewerApp(ctk.CTk):
                     self.show_crosshair_var.set(v)
                 elif k == "show_distance_text" and hasattr(self, "show_distance_var"):
                     self.show_distance_var.set(v)
-                # 更新 NDI FOV 設置
+                # 鏇存柊 NDI FOV 瑷疆
                 elif k == "ndi_fov_enabled" and hasattr(self, "var_ndi_fov_enabled"):
                     self.var_ndi_fov_enabled.set(v)
                 elif k == "ndi_fov" and hasattr(self, "ndi_fov_entry") and self.ndi_fov_entry.winfo_exists():
@@ -3245,7 +3325,7 @@ class ViewerApp(ctk.CTk):
                     if hasattr(self, "ndi_fov_slider"):
                         self.ndi_fov_slider.set(v)
                     self._update_ndi_fov_info()
-                # 更新 UDP FOV 設置
+                # 鏇存柊 UDP FOV 瑷疆
                 elif k == "udp_fov_enabled" and hasattr(self, "var_udp_fov_enabled"):
                     self.var_udp_fov_enabled.set(v)
                 elif k == "udp_fov" and hasattr(self, "udp_fov_entry") and self.udp_fov_entry.winfo_exists():
@@ -3326,7 +3406,7 @@ class ViewerApp(ctk.CTk):
     def _on_capture_method_changed(self, val):
         self.capture_method_var.set(val)
         self.capture.set_mode(val)
-        config.capture_mode = val  # 保存到 config
+        config.capture_mode = val  # 淇濆瓨鍒?config
         self._update_capture_ui()
         self._set_status_indicator(f"Status: Mode {val}", COLOR_TEXT)
 
@@ -3344,12 +3424,12 @@ class ViewerApp(ctk.CTk):
             self._set_status_indicator("Status: Refreshing NDI", COLOR_TEXT)
 
     def _update_ndi_fov_slider_max(self, width, height):
-        """更新 NDI FOV 滑條的最大值（正方形裁切，使用較小的尺寸）"""
+        """鏇存柊 NDI FOV 婊戞鐨勬渶澶у€硷紙姝ｆ柟褰㈣鍒囷紝浣跨敤杓冨皬鐨勫昂瀵革級"""
         if hasattr(self, 'ndi_fov_slider') and self.ndi_fov_slider.winfo_exists():
-            # 正方形裁切，最大值設為寬度和高度中較小的一半
+            # 姝ｆ柟褰㈣鍒囷紝鏈€澶у€艰ō鐐哄搴﹀拰楂樺害涓純灏忕殑涓€鍗?
             max_fov = max(16, min(width, height) // 2) if (width and height) else 1920
             self.ndi_fov_slider.configure(to=max_fov)
-            # 如果當前值超過新的最大值，調整為最大值
+            # 濡傛灉鐣跺墠鍊艰秴閬庢柊鐨勬渶澶у€硷紝瑾挎暣鐐烘渶澶у€?
             current_val = int(getattr(config, "ndi_fov", 320))
             if current_val > max_fov:
                 config.ndi_fov = max_fov
@@ -3357,16 +3437,16 @@ class ViewerApp(ctk.CTk):
                 if hasattr(self, 'ndi_fov_entry') and self.ndi_fov_entry.winfo_exists():
                     self.ndi_fov_entry.delete(0, "end")
                     self.ndi_fov_entry.insert(0, str(max_fov))
-            # 更新資訊顯示
+            # 鏇存柊璩囪▕椤ず
             self._update_ndi_fov_info()
     
     def _update_udp_fov_slider_max(self, width, height):
-        """更新 UDP FOV 滑條的最大值（正方形裁切，使用較小的尺寸）"""
+        """鏇存柊 UDP FOV 婊戞鐨勬渶澶у€硷紙姝ｆ柟褰㈣鍒囷紝浣跨敤杓冨皬鐨勫昂瀵革級"""
         if hasattr(self, 'udp_fov_slider') and self.udp_fov_slider.winfo_exists():
-            # 正方形裁切，最大值設為寬度和高度中較小的一半
+            # 姝ｆ柟褰㈣鍒囷紝鏈€澶у€艰ō鐐哄搴﹀拰楂樺害涓純灏忕殑涓€鍗?
             max_fov = max(16, min(width, height) // 2) if (width and height) else 1920
             self.udp_fov_slider.configure(to=max_fov)
-            # 如果當前值超過新的最大值，調整為最大值
+            # 濡傛灉鐣跺墠鍊艰秴閬庢柊鐨勬渶澶у€硷紝瑾挎暣鐐烘渶澶у€?
             current_val = int(getattr(config, "udp_fov", 320))
             if current_val > max_fov:
                 config.udp_fov = max_fov
@@ -3374,7 +3454,7 @@ class ViewerApp(ctk.CTk):
                 if hasattr(self, 'udp_fov_entry') and self.udp_fov_entry.winfo_exists():
                     self.udp_fov_entry.delete(0, "end")
                     self.udp_fov_entry.insert(0, str(max_fov))
-            # 更新資訊顯示
+            # 鏇存柊璩囪▕椤ず
             self._update_udp_fov_info()
     
     def _connect_to_selected(self):
@@ -3385,20 +3465,20 @@ class ViewerApp(ctk.CTk):
             selected = self.source_option.get()
             if selected and selected not in ["(no sources)", "(Scanning...)"]:
                 self.capture.ndi.set_selected_source(selected)
-                # 保存選中的 NDI 源
+                # 淇濆瓨閬镐腑鐨?NDI 婧?
                 self.saved_ndi_source = selected
                 config.last_ndi_source = selected
             
             success, error = self.capture.connect_ndi(selected)
             if success:
                 self._set_status_indicator("Status: NDI connected", COLOR_TEXT)
-                # 連接成功後，嘗試獲取畫面尺寸並更新滑條最大值
-                self.after(500, self._update_ndi_fov_sliders_after_connect)  # 延遲一點以確保畫面已準備好
+                # 閫ｆ帴鎴愬姛寰岋紝鍢楄│鐛插彇鐣潰灏哄涓︽洿鏂版粦姊濇渶澶у€?
+                self.after(500, self._update_ndi_fov_sliders_after_connect)  # 寤堕伈涓€榛炰互纰轰繚鐣潰宸叉簴鍌欏ソ
             else:
                 self._set_status_indicator(f"Status: NDI error: {error}", COLOR_DANGER)
     
     def _update_ndi_fov_sliders_after_connect(self):
-        """連接成功後更新 NDI FOV 滑條的最大值"""
+        """閫ｆ帴鎴愬姛寰屾洿鏂?NDI FOV 婊戞鐨勬渶澶у€?"""
         width, height = self.capture.get_frame_dimensions()
         if width and height:
             self._update_ndi_fov_slider_max(width, height)
@@ -3406,7 +3486,7 @@ class ViewerApp(ctk.CTk):
             if hasattr(self, '_ndi_retry_count'):
                 self._ndi_retry_count = 0
         else:
-            # 如果第一次獲取失敗，再試一次（最多試3次）
+            # 濡傛灉绗竴娆＄嵅鍙栧け鏁楋紝鍐嶈│涓€娆★紙鏈€澶氳│3娆★級
             if not hasattr(self, '_ndi_retry_count'):
                 self._ndi_retry_count = 0
             self._ndi_retry_count += 1
@@ -3420,7 +3500,7 @@ class ViewerApp(ctk.CTk):
             ip = self.udp_ip_entry.get()
             port = self.udp_port_entry.get()
             
-            # 保存到內存和 config
+            # 淇濆瓨鍒板収瀛樺拰 config
             self.saved_udp_ip = ip
             self.saved_udp_port = port
             config.udp_ip = ip
@@ -3429,20 +3509,20 @@ class ViewerApp(ctk.CTk):
             success, error = self.capture.connect_udp(ip, port)
             if success:
                 self._set_status_indicator("Status: UDP connected", COLOR_TEXT)
-                # 連接成功後，嘗試獲取畫面尺寸並更新滑條最大值
-                self.after(500, self._update_udp_fov_sliders_after_connect)  # 延遲一點以確保畫面已準備好
+                # 閫ｆ帴鎴愬姛寰岋紝鍢楄│鐛插彇鐣潰灏哄涓︽洿鏂版粦姊濇渶澶у€?
+                self.after(500, self._update_udp_fov_sliders_after_connect)  # 寤堕伈涓€榛炰互纰轰繚鐣潰宸叉簴鍌欏ソ
             else:
                 self._set_status_indicator(f"Status: UDP connect failed: {error}", COLOR_DANGER)
                 log_print(f"[UI] UDP connection failed: {error}")
     
     def _update_udp_fov_sliders_after_connect(self):
-        """連接成功後更新 UDP FOV 滑條的最大值"""
+        """閫ｆ帴鎴愬姛寰屾洿鏂?UDP FOV 婊戞鐨勬渶澶у€?"""
         width, height = self.capture.get_frame_dimensions()
         if width and height:
             self._update_udp_fov_slider_max(width, height)
             log_print(f"[UI] UDP frame dimensions: {width}x{height}, updated FOV slider max values")
         else:
-            # 如果第一次獲取失敗，再試一次（最多試3次）
+            # 濡傛灉绗竴娆＄嵅鍙栧け鏁楋紝鍐嶈│涓€娆★紙鏈€澶氳│3娆★級
             if not hasattr(self, '_udp_retry_count'):
                 self._udp_retry_count = 0
             self._udp_retry_count += 1
@@ -3452,9 +3532,9 @@ class ViewerApp(ctk.CTk):
                 self._udp_retry_count = 0
     
     def _connect_capture_card(self):
-        """連接 CaptureCard"""
+        """閫ｆ帴 CaptureCard"""
         if self.capture.mode == "CaptureCard":
-            # 確保配置已更新
+            # 纰轰繚閰嶇疆宸叉洿鏂?
             if hasattr(self, 'capture_card_device_entry'):
                 try:
                     device_index = int(self.capture_card_device_entry.get())
@@ -3468,7 +3548,7 @@ class ViewerApp(ctk.CTk):
                     height = int(self.capture_card_height_entry.get())
                     config.capture_width = width
                     config.capture_height = height
-                    # 更新中心點顯示（因為分辨率改變可能影響中心點）
+                    # 鏇存柊涓績榛為’绀猴紙鍥犵偤鍒嗚鲸鐜囨敼璁婂彲鑳藉奖闊夸腑蹇冮粸锛?
                     self._update_capture_card_center_display()
                 except ValueError:
                     pass
@@ -3480,7 +3560,7 @@ class ViewerApp(ctk.CTk):
                 except ValueError:
                     pass
             
-            # 更新中心點顯示
+            # 鏇存柊涓績榛為’绀?
             self._update_capture_card_center_display()
             
             success, error = self.capture.connect_capture_card(config)
@@ -3492,7 +3572,7 @@ class ViewerApp(ctk.CTk):
 
     # --- MSS Callbacks ---
     def _on_mss_monitor_changed(self, event=None):
-        """MSS Monitor Index 改變"""
+        """MSS Monitor Index 鏀硅畩"""
         if hasattr(self, 'mss_monitor_entry') and self.mss_monitor_entry.winfo_exists():
             try:
                 val = int(self.mss_monitor_entry.get())
@@ -3501,20 +3581,20 @@ class ViewerApp(ctk.CTk):
                 pass
     
     def _on_mss_fov_x_slider_changed(self, val):
-        """MSS FOV X 滑條改變"""
+        """MSS FOV X 婊戞鏀硅畩"""
         int_val = int(round(val))
         config.mss_fov_x = int_val
         if hasattr(self, 'mss_fov_x_entry') and self.mss_fov_x_entry.winfo_exists():
             self.mss_fov_x_entry.delete(0, "end")
             self.mss_fov_x_entry.insert(0, str(int_val))
         self._update_mss_capture_info()
-        # 即時更新已連接的 MSS 擷取器
+        # 鍗虫檪鏇存柊宸查€ｆ帴鐨?MSS 鎿峰彇鍣?
         if self.capture.mss_capture and self.capture.mss_capture.is_connected():
             fov_y = int(getattr(config, "mss_fov_y", 320))
             self.capture.mss_capture.set_fov(int_val, fov_y)
     
     def _on_mss_fov_x_entry_changed(self, event=None):
-        """MSS FOV X 輸入框改變"""
+        """MSS FOV X 杓稿叆妗嗘敼璁?"""
         if hasattr(self, 'mss_fov_x_entry') and self.mss_fov_x_entry.winfo_exists():
             try:
                 val = int(self.mss_fov_x_entry.get())
@@ -3530,7 +3610,7 @@ class ViewerApp(ctk.CTk):
                 pass
     
     def _on_mss_fov_y_slider_changed(self, val):
-        """MSS FOV Y 滑條改變"""
+        """MSS FOV Y 婊戞鏀硅畩"""
         int_val = int(round(val))
         config.mss_fov_y = int_val
         if hasattr(self, 'mss_fov_y_entry') and self.mss_fov_y_entry.winfo_exists():
@@ -3542,7 +3622,7 @@ class ViewerApp(ctk.CTk):
             self.capture.mss_capture.set_fov(fov_x, int_val)
     
     def _on_mss_fov_y_entry_changed(self, event=None):
-        """MSS FOV Y 輸入框改變"""
+        """MSS FOV Y 杓稿叆妗嗘敼璁?"""
         if hasattr(self, 'mss_fov_y_entry') and self.mss_fov_y_entry.winfo_exists():
             try:
                 val = int(self.mss_fov_y_entry.get())
@@ -3558,7 +3638,7 @@ class ViewerApp(ctk.CTk):
                 pass
     
     def _update_mss_capture_info(self):
-        """更新 MSS 擷取範圍資訊顯示"""
+        """鏇存柊 MSS 鎿峰彇绡勫湇璩囪▕椤ず"""
         if hasattr(self, 'mss_capture_info_label') and self.mss_capture_info_label.winfo_exists():
             fov_x = int(getattr(config, "mss_fov_x", 320))
             fov_y = int(getattr(config, "mss_fov_y", 320))
@@ -3569,13 +3649,13 @@ class ViewerApp(ctk.CTk):
             )
     
     def _connect_mss(self):
-        """連接 MSS 螢幕擷取"""
+        """閫ｆ帴 MSS 铻㈠箷鎿峰彇"""
         if self.capture.mode == "MSS":
             monitor_index = int(getattr(config, "mss_monitor_index", 1))
             fov_x = int(getattr(config, "mss_fov_x", 320))
             fov_y = int(getattr(config, "mss_fov_y", 320))
             
-            # 從輸入框更新
+            # 寰炶几鍏ユ鏇存柊
             if hasattr(self, 'mss_monitor_entry') and self.mss_monitor_entry.winfo_exists():
                 try:
                     monitor_index = int(self.mss_monitor_entry.get())
@@ -3592,12 +3672,12 @@ class ViewerApp(ctk.CTk):
     
     # --- NDI FOV Callbacks ---
     def _on_ndi_fov_enabled_changed(self):
-        """NDI FOV 啟用狀態改變"""
+        """NDI FOV 鍟熺敤鐙€鎱嬫敼璁?"""
         if hasattr(self, 'var_ndi_fov_enabled'):
             config.ndi_fov_enabled = self.var_ndi_fov_enabled.get()
     
     def _on_ndi_fov_slider_changed(self, val):
-        """NDI FOV 滑條改變"""
+        """NDI FOV 婊戞鏀硅畩"""
         int_val = int(round(val))
         config.ndi_fov = int_val
         if hasattr(self, 'ndi_fov_entry') and self.ndi_fov_entry.winfo_exists():
@@ -3606,7 +3686,7 @@ class ViewerApp(ctk.CTk):
         self._update_ndi_fov_info()
     
     def _on_ndi_fov_entry_changed(self, event=None):
-        """NDI FOV 輸入框改變"""
+        """NDI FOV 杓稿叆妗嗘敼璁?"""
         if hasattr(self, 'ndi_fov_entry') and self.ndi_fov_entry.winfo_exists():
             try:
                 val = int(self.ndi_fov_entry.get())
@@ -3619,7 +3699,7 @@ class ViewerApp(ctk.CTk):
                 pass
     
     def _update_ndi_fov_info(self):
-        """更新 NDI 裁切範圍資訊顯示"""
+        """鏇存柊 NDI 瑁佸垏绡勫湇璩囪▕椤ず"""
         if hasattr(self, 'ndi_fov_info_label') and self.ndi_fov_info_label.winfo_exists():
             fov = int(getattr(config, "ndi_fov", 320))
             total_size = fov * 2
@@ -3629,12 +3709,12 @@ class ViewerApp(ctk.CTk):
     
     # --- UDP FOV Callbacks ---
     def _on_udp_fov_enabled_changed(self):
-        """UDP FOV 啟用狀態改變"""
+        """UDP FOV 鍟熺敤鐙€鎱嬫敼璁?"""
         if hasattr(self, 'var_udp_fov_enabled'):
             config.udp_fov_enabled = self.var_udp_fov_enabled.get()
     
     def _on_udp_fov_slider_changed(self, val):
-        """UDP FOV 滑條改變"""
+        """UDP FOV 婊戞鏀硅畩"""
         int_val = int(round(val))
         config.udp_fov = int_val
         if hasattr(self, 'udp_fov_entry') and self.udp_fov_entry.winfo_exists():
@@ -3643,7 +3723,7 @@ class ViewerApp(ctk.CTk):
         self._update_udp_fov_info()
     
     def _on_udp_fov_entry_changed(self, event=None):
-        """UDP FOV 輸入框改變"""
+        """UDP FOV 杓稿叆妗嗘敼璁?"""
         if hasattr(self, 'udp_fov_entry') and self.udp_fov_entry.winfo_exists():
             try:
                 val = int(self.udp_fov_entry.get())
@@ -3656,7 +3736,7 @@ class ViewerApp(ctk.CTk):
                 pass
     
     def _update_udp_fov_info(self):
-        """更新 UDP 裁切範圍資訊顯示"""
+        """鏇存柊 UDP 瑁佸垏绡勫湇璩囪▕椤ず"""
         if hasattr(self, 'udp_fov_info_label') and self.udp_fov_info_label.winfo_exists():
             fov = int(getattr(config, "udp_fov", 320))
             total_size = fov * 2
@@ -3683,7 +3763,7 @@ class ViewerApp(ctk.CTk):
 
         if hasattr(self, "hardware_details_toggle") and self.hardware_details_toggle.winfo_exists():
             self.hardware_details_toggle.configure(
-                text="Hardware Info ▾" if self._hardware_info_expanded else "Hardware Info ▸"
+                text="Hardware Info ▼" if self._hardware_info_expanded else "Hardware Info ▶"
             )
 
         if hasattr(self, "hardware_details_label") and self.hardware_details_label.winfo_exists():
@@ -3812,9 +3892,9 @@ class ViewerApp(ctk.CTk):
 
         if hasattr(self, "hardware_conn_label") and self.hardware_conn_label.winfo_exists():
             if connected:
-                self.hardware_conn_label.configure(text="Hardware Status: 🟢 Connected", text_color=COLOR_SUCCESS)
+                self.hardware_conn_label.configure(text="Hardware Status: 馃煝 Connected", text_color=COLOR_SUCCESS)
             else:
-                self.hardware_conn_label.configure(text="Hardware Status: 🔴 Disconnected", text_color=COLOR_DANGER)
+                self.hardware_conn_label.configure(text="Hardware Status: 馃敶 Disconnected", text_color=COLOR_DANGER)
 
         if (
             getattr(self, "_hardware_info_expanded", False)
@@ -3835,35 +3915,35 @@ class ViewerApp(ctk.CTk):
         self.after(500, self._update_connection_status_loop)
 
     def _update_performance_stats(self):
-        """更新性能統計信息（FPS 和延遲）"""
+        """鏇存柊鎬ц兘绲辫▓淇℃伅锛團PS 鍜屽欢閬诧級"""
         try:
             if self.capture.mode == "UDP" and self.capture.is_connected():
-                # 從 UDP receiver 獲取性能統計
+                # 寰?UDP receiver 鐛插彇鎬ц兘绲辫▓
                 receiver = self.capture.udp_manager.get_receiver()
                 if receiver:
                     stats = receiver.get_performance_stats()
                     
-                    # 更新 FPS
+                    # 鏇存柊 FPS
                     current_fps = stats.get('current_fps', 0)
                     self.fps_label.configure(text=f"FPS: {current_fps:.1f}")
                     
-                    # 更新解碼延遲
+                    # 鏇存柊瑙ｇ⒓寤堕伈
                     decode_delay = stats.get('decode_delay_ms', 0)
                     self.decode_delay_label.configure(text=f"Decode: {decode_delay:.1f} ms")
                     
-                    # 更新總延遲（接收 + 解碼 + 處理）
+                    # 鏇存柊绺藉欢閬诧紙鎺ユ敹 + 瑙ｇ⒓ + 铏曠悊锛?
                     receive_delay = stats.get('receive_delay_ms', 0)
                     processing_delay = stats.get('processing_delay_ms', 0)
                     total_delay = receive_delay + decode_delay + processing_delay
                     self.total_delay_label.configure(text=f"Delay: {total_delay:.1f} ms")
             elif self.capture.mode == "NDI" and self.capture.is_connected():
-                # NDI 模式：從 tracker 獲取簡單的 FPS 信息
+                # NDI 妯″紡锛氬緸 tracker 鐛插彇绨″柈鐨?FPS 淇℃伅
                 if hasattr(self.tracker, '_frame_count'):
                     self.fps_label.configure(text=f"FPS: ~{self.tracker._target_fps}")
                     self.decode_delay_label.configure(text="Decode: N/A")
                     self.total_delay_label.configure(text="Delay: N/A")
             elif self.capture.mode == "MSS" and self.capture.is_connected():
-                # MSS 模式：從 mss_capture 獲取效能統計
+                # MSS 妯″紡锛氬緸 mss_capture 鐛插彇鏁堣兘绲辫▓
                 if self.capture.mss_capture:
                     stats = self.capture.mss_capture.get_performance_stats()
                     fps = stats.get('current_fps', 0)
@@ -3876,20 +3956,20 @@ class ViewerApp(ctk.CTk):
                     self.decode_delay_label.configure(text="Grab: -- ms")
                     self.total_delay_label.configure(text="Delay: -- ms")
             elif self.capture.mode == "CaptureCard" and self.capture.is_connected():
-                # CaptureCard 模式：顯示基本 FPS 信息
+                # CaptureCard 妯″紡锛氶’绀哄熀鏈?FPS 淇℃伅
                 if hasattr(self.tracker, '_frame_count'):
                     self.fps_label.configure(text=f"FPS: ~{self.tracker._target_fps}")
                     self.decode_delay_label.configure(text="Decode: N/A")
                     self.total_delay_label.configure(text="Delay: N/A")
             else:
-                # 未連接時顯示 --
+                # 鏈€ｆ帴鏅傞’绀?--
                 self.fps_label.configure(text="FPS: --")
                 self.decode_delay_label.configure(text="Decode: -- ms")
                 self.total_delay_label.configure(text="Delay: -- ms")
         except Exception as e:
             log_print(f"[UI] Performance stats update error: {e}")
         
-        # 每 500ms 更新一次
+        # 姣?500ms 鏇存柊涓€娆?
         self.after(500, self._update_performance_stats)
 
     def _apply_sources_to_ui(self, names):
@@ -3898,7 +3978,7 @@ class ViewerApp(ctk.CTk):
             if names:
                 self.source_option.configure(values=names)
                 
-                # 嘗試恢復之前保存的選擇
+                # 鍢楄│鎭㈠京涔嬪墠淇濆瓨鐨勯伕鎿?
                 if self.saved_ndi_source and self.saved_ndi_source in names:
                     self.source_option.set(self.saved_ndi_source)
                 elif self.source_option.get() not in names:
@@ -3913,11 +3993,11 @@ class ViewerApp(ctk.CTk):
                 self.capture.ndi.set_selected_source(val)
 
     def _open_settings_window(self):
-        """打開設置視窗"""
+        """鎵撻枊瑷疆瑕栫獥"""
         SettingsWindow(self)
     
     def _on_close(self):
-        # 從 tracker 同步最新的設置到 config（確保所有運行時的變更都被保存）
+        # 寰?tracker 鍚屾鏈€鏂扮殑瑷疆鍒?config锛堢⒑淇濇墍鏈夐亱琛屾檪鐨勮畩鏇撮兘琚繚瀛橈級
         try:
             config.normal_x_speed = self.tracker.normal_x_speed
             config.normal_y_speed = self.tracker.normal_y_speed
@@ -3925,7 +4005,10 @@ class ViewerApp(ctk.CTk):
             config.normalsmoothfov = self.tracker.normalsmoothfov
             config.fovsize = self.tracker.fovsize
             config.tbfovsize = self.tracker.tbfovsize
-            config.tbdelay = self.tracker.tbdelay
+            config.tbdelay_min = self.tracker.tbdelay_min
+            config.tbdelay_max = self.tracker.tbdelay_max
+            config.tbhold_min = self.tracker.tbhold_min
+            config.tbhold_max = self.tracker.tbhold_max
             config.in_game_sens = self.tracker.in_game_sens
             config.mouse_dpi = self.tracker.mouse_dpi
             
@@ -3940,28 +4023,28 @@ class ViewerApp(ctk.CTk):
         except Exception as e:
             log_print(f"[UI] Sync before save error: {e}")
         
-        # 保存當前配置
+        # 淇濆瓨鐣跺墠閰嶇疆
         try:
             config.save_to_file()
         except Exception as e:
             log_print(f"[UI] Failed to auto-save configuration: {e}")
         
-        # 停止追蹤器
+        # 鍋滄杩借工鍣?
         try: 
             self.tracker.stop()
         except Exception as e:
             log_print(f"[UI] Tracker stop error: {e}")
         
-        # 清理捕獲服務
+        # 娓呯悊鎹曠嵅鏈嶅嫏
         try: 
             self.capture.cleanup()
         except Exception as e:
             log_print(f"[UI] Capture cleanup error: {e}")
         
-        # 銷毀窗口
+        # 閵锋瘈绐楀彛
         self.destroy()
         
-        # 關閉所有 OpenCV 窗口
+        # 闂滈枆鎵€鏈?OpenCV 绐楀彛
         try: 
             cv2.destroyAllWindows()
         except Exception as e:
@@ -4018,17 +4101,44 @@ class ViewerApp(ctk.CTk):
         config.aim_type = val
     
     def _on_tbdelay_range_changed(self, min_val, max_val):
-        """Triggerbot Delay 範圍改變"""
+        """Triggerbot Delay 绡勫湇鏀硅畩"""
         config.tbdelay_min = min_val
         config.tbdelay_max = max_val
+        if hasattr(self, 'tracker'):
+            self.tracker.tbdelay_min = min_val
+            self.tracker.tbdelay_max = max_val
     
     def _on_tbhold_range_changed(self, min_val, max_val):
-        """Triggerbot Hold 範圍改變"""
+        """Triggerbot Hold 绡勫湇鏀硅畩"""
         config.tbhold_min = min_val
         config.tbhold_max = max_val
+        if hasattr(self, 'tracker'):
+            self.tracker.tbhold_min = min_val
+            self.tracker.tbhold_max = max_val
     
+
+    def _on_trigger_roi_size_changed(self, val):
+        config.trigger_roi_size = int(val)
+        if hasattr(self, "tracker"):
+            self.tracker.trigger_roi_size = int(val)
+
+    def _on_trigger_min_pixels_changed(self, val):
+        config.trigger_min_pixels = int(val)
+        if hasattr(self, "tracker"):
+            self.tracker.trigger_min_pixels = int(val)
+
+    def _on_trigger_min_ratio_changed(self, val):
+        config.trigger_min_ratio = float(val)
+        if hasattr(self, "tracker"):
+            self.tracker.trigger_min_ratio = float(val)
+
+    def _on_trigger_confirm_frames_changed(self, val):
+        config.trigger_confirm_frames = int(val)
+        if hasattr(self, "tracker"):
+            self.tracker.trigger_confirm_frames = int(val)
+
     def _on_tbcooldown_range_changed(self, min_val, max_val):
-        """Triggerbot Cooldown 範圍改變"""
+        """Triggerbot Cooldown 绡勫湇鏀硅畩"""
         config.tbcooldown_min = min_val
         config.tbcooldown_max = max_val
         if hasattr(self, 'tracker'):
@@ -4036,7 +4146,7 @@ class ViewerApp(ctk.CTk):
             self.tracker.tbcooldown_max = max_val
     
     def _on_tbburst_count_range_changed(self, min_val, max_val):
-        """Triggerbot Burst Count 範圍改變"""
+        """Triggerbot Burst Count 绡勫湇鏀硅畩"""
         config.tbburst_count_min = int(min_val)
         config.tbburst_count_max = int(max_val)
         if hasattr(self, 'tracker'):
@@ -4044,7 +4154,7 @@ class ViewerApp(ctk.CTk):
             self.tracker.tbburst_count_max = int(max_val)
     
     def _on_tbburst_interval_range_changed(self, min_val, max_val):
-        """Triggerbot Burst Interval 範圍改變"""
+        """Triggerbot Burst Interval 绡勫湇鏀硅畩"""
         config.tbburst_interval_min = min_val
         config.tbburst_interval_max = max_val
         if hasattr(self, 'tracker'):
@@ -4063,7 +4173,7 @@ class ViewerApp(ctk.CTk):
         config.enableaim = self.var_enableaim.get()
     
     def _on_anti_smoke_changed(self):
-        """Main Aimbot Anti-Smoke 開關回調"""
+        """Main Aimbot Anti-Smoke 闁嬮棞鍥炶"""
         config.anti_smoke_enabled = self.var_anti_smoke.get()
         if hasattr(self.tracker, 'anti_smoke_detector'):
             self.tracker.anti_smoke_detector.set_enabled(config.anti_smoke_enabled)
@@ -4072,61 +4182,61 @@ class ViewerApp(ctk.CTk):
         config.enabletb = self.var_enabletb.get()
     
     def _on_enablercs_changed(self):
-        """RCS 開關改變"""
+        """RCS 闁嬮棞鏀硅畩"""
         config.enablercs = self.var_enablercs.get()
     
     def _on_rcs_pull_speed_changed(self, val):
-        """RCS Pull Speed 改變"""
+        """RCS Pull Speed 鏀硅畩"""
         config.rcs_pull_speed = int(val)
         if hasattr(self, 'tracker'):
             self.tracker.rcs_pull_speed = int(val)
     
     def _on_rcs_activation_delay_changed(self, val):
-        """RCS Activation Delay 改變"""
+        """RCS Activation Delay 鏀硅畩"""
         config.rcs_activation_delay = int(val)
         if hasattr(self, 'tracker'):
             self.tracker.rcs_activation_delay = int(val)
     
     def _on_rcs_rapid_click_threshold_changed(self, val):
-        """RCS Rapid Click Threshold 改變"""
+        """RCS Rapid Click Threshold 鏀硅畩"""
         config.rcs_rapid_click_threshold = int(val)
         if hasattr(self, 'tracker'):
             self.tracker.rcs_rapid_click_threshold = int(val)
     
     def _on_rcs_release_y_enabled_changed(self):
-        """RCS Release Y-Axis 開關改變"""
+        """RCS Release Y-Axis 闁嬮棞鏀硅畩"""
         config.rcs_release_y_enabled = self.var_rcs_release_y_enabled.get()
     
     def _on_rcs_release_y_duration_changed(self, val):
-        """RCS Release Y-Axis Duration 改變"""
+        """RCS Release Y-Axis Duration 鏀硅畩"""
         config.rcs_release_y_duration = float(val)
     
     def _on_color_selected(self, val): 
         config.color = val
         self.tracker.color = val
-        # 實時重新載入模型以應用新的顏色設定
+        # 瀵︽檪閲嶆柊杓夊叆妯″瀷浠ユ噳鐢ㄦ柊鐨勯鑹茶ō瀹?
         from src.utils.detection import reload_model
         self.tracker.model, self.tracker.class_names = reload_model()
-        # 更新 Custom HSV 區塊的可見性
+        # 鏇存柊 Custom HSV 鍗€濉婄殑鍙鎬?
         self._update_custom_hsv_visibility()
     
     def _update_custom_hsv_visibility(self):
-        """根據當前選擇的顏色更新 Custom HSV 區塊的可見性"""
+        """鏍规摎鐣跺墠閬告搰鐨勯鑹叉洿鏂?Custom HSV 鍗€濉婄殑鍙鎬?"""
         if hasattr(self, 'custom_hsv_container'):
             current_color = getattr(config, "color", "yellow")
             if current_color == "custom":
-                # 顯示 Custom HSV 區塊
+                # 椤ず Custom HSV 鍗€濉?
                 if not self.custom_hsv_container.winfo_ismapped():
                     self.custom_hsv_container.pack(fill="x", pady=(5, 0))
             else:
-                # 隱藏 Custom HSV 區塊
+                # 闅辫棌 Custom HSV 鍗€濉?
                 if self.custom_hsv_container.winfo_ismapped():
                     self.custom_hsv_container.pack_forget()
     
     def _on_custom_hsv_changed(self, key, val):
-        """Custom HSV 值改變時的回調"""
+        """Custom HSV 鍊兼敼璁婃檪鐨勫洖瑾?"""
         setattr(config, key, int(val))
-        # 如果當前選擇的是 custom，實時重新載入模型
+        # 濡傛灉鐣跺墠閬告搰鐨勬槸 custom锛屽鏅傞噸鏂拌級鍏ユā鍨?
         if getattr(config, "color", "yellow") == "custom":
             from src.utils.detection import reload_model
             if hasattr(self, 'tracker'):
@@ -4134,21 +4244,21 @@ class ViewerApp(ctk.CTk):
                 log_print(f"[UI] Custom HSV updated: {key} = {int(val)}")
     
     def _on_detection_merge_distance_changed(self, val):
-        """Detection Merge Distance 改變時的回調"""
+        """Detection Merge Distance 鏀硅畩鏅傜殑鍥炶"""
         config.detection_merge_distance = int(val)
         log_print(f"[UI] Detection merge distance updated: {int(val)}")
     
     def _on_detection_min_contour_points_changed(self, val):
-        """Detection Min Contour Points 改變時的回調"""
+        """Detection Min Contour Points 鏀硅畩鏅傜殑鍥炶"""
         config.detection_min_contour_points = int(val)
         log_print(f"[UI] Detection min contour points updated: {int(val)}")
     
     def _on_mode_selected(self, val): 
         config.mode = val
         self.tracker.mode = val
-        # 重新渲染 Aimbot tab 以顯示對應模式的參數
+        # 閲嶆柊娓叉煋 Aimbot tab 浠ラ’绀哄皪鎳夋ā寮忕殑鍙冩暩
         self._show_aimbot_tab()
-        # 重新高亮正確的導航按鈕
+        # 閲嶆柊楂樹寒姝ｇ⒑鐨勫皫鑸寜閳?
         for name, btn in self.nav_buttons.items():
             if name == "Aimbot":
                 btn.configure(text_color=COLOR_ACCENT)
@@ -4158,9 +4268,9 @@ class ViewerApp(ctk.CTk):
     def _on_mode_sec_selected(self, val):
         config.mode_sec = val
         self.tracker.mode_sec = val
-        # 重新渲染 Sec Aimbot tab 以顯示對應模式的參數
+        # 閲嶆柊娓叉煋 Sec Aimbot tab 浠ラ’绀哄皪鎳夋ā寮忕殑鍙冩暩
         self._show_sec_aimbot_tab()
-        # 重新高亮正確的導航按鈕
+        # 閲嶆柊楂樹寒姝ｇ⒑鐨勫皫鑸寜閳?
         for name, btn in self.nav_buttons.items():
             if name == "Sec Aimbot":
                 btn.configure(text_color=COLOR_ACCENT)
@@ -4201,7 +4311,7 @@ class ViewerApp(ctk.CTk):
         config.enableaim_sec = self.var_enableaim_sec.get()
     
     def _on_anti_smoke_sec_changed(self):
-        """Secondary Aimbot Anti-Smoke 開關回調"""
+        """Secondary Aimbot Anti-Smoke 闁嬮棞鍥炶"""
         config.anti_smoke_enabled_sec = self.var_anti_smoke_sec.get()
         if hasattr(self.tracker, 'anti_smoke_detector_sec'):
             self.tracker.anti_smoke_detector_sec.set_enabled(config.anti_smoke_enabled_sec)
@@ -4210,7 +4320,7 @@ class ViewerApp(ctk.CTk):
     def _on_ncaf_near_radius_changed(self, val):
         config.ncaf_near_radius = val
         snap = getattr(config, "ncaf_snap_radius", val)
-        # Snap 應大於 Near；若不符則自動往上調整並同步 UI
+        # Snap 鎳夊ぇ鏂?Near锛涜嫢涓嶇鍓囪嚜鍕曞線涓婅鏁翠甫鍚屾 UI
         if snap <= val:
             snap = min(500, val + 1)
             config.ncaf_snap_radius = snap
@@ -4240,7 +4350,7 @@ class ViewerApp(ctk.CTk):
         config.ncaf_max_speed_multiplier = val
     
     def _on_ncaf_prediction_interval_changed(self, val):
-        config.ncaf_prediction_interval = val / 1000.0  # ms → s
+        config.ncaf_prediction_interval = val / 1000.0  # ms 鈫?s
     
     # === NCAF Callbacks (Sec) ===
     def _on_ncaf_near_radius_sec_changed(self, val):
@@ -4275,7 +4385,7 @@ class ViewerApp(ctk.CTk):
         config.ncaf_max_speed_multiplier_sec = val
     
     def _on_ncaf_prediction_interval_sec_changed(self, val):
-        config.ncaf_prediction_interval_sec = val / 1000.0  # ms → s
+        config.ncaf_prediction_interval_sec = val / 1000.0  # ms 鈫?s
     
     # === WindMouse Callbacks (Main) ===
     def _on_wm_gravity_changed(self, val):
@@ -4291,10 +4401,10 @@ class ViewerApp(ctk.CTk):
         config.wm_min_step = val
     
     def _on_wm_min_delay_changed(self, val):
-        config.wm_min_delay = val / 1000.0  # ms → s
+        config.wm_min_delay = val / 1000.0  # ms 鈫?s
     
     def _on_wm_max_delay_changed(self, val):
-        config.wm_max_delay = val / 1000.0  # ms → s
+        config.wm_max_delay = val / 1000.0  # ms 鈫?s
     
     def _on_wm_distance_threshold_changed(self, val):
         config.wm_distance_threshold = val
@@ -4313,10 +4423,10 @@ class ViewerApp(ctk.CTk):
         config.wm_min_step_sec = val
     
     def _on_wm_min_delay_sec_changed(self, val):
-        config.wm_min_delay_sec = val / 1000.0  # ms → s
+        config.wm_min_delay_sec = val / 1000.0  # ms 鈫?s
     
     def _on_wm_max_delay_sec_changed(self, val):
-        config.wm_max_delay_sec = val / 1000.0  # ms → s
+        config.wm_max_delay_sec = val / 1000.0  # ms 鈫?s
     
     def _on_wm_distance_threshold_sec_changed(self, val):
         config.wm_distance_threshold_sec = val
@@ -4335,7 +4445,7 @@ class ViewerApp(ctk.CTk):
         config.bezier_speed = float(val)
     
     def _on_bezier_delay_changed(self, val):
-        config.bezier_delay = float(val) / 1000.0  # ms → s
+        config.bezier_delay = float(val) / 1000.0  # ms 鈫?s
     
     # --- Bezier Callbacks (Sec) ---
     def _on_bezier_segments_sec_changed(self, val):
@@ -4351,12 +4461,14 @@ class ViewerApp(ctk.CTk):
         config.bezier_speed_sec = float(val)
     
     def _on_bezier_delay_sec_changed(self, val):
-        config.bezier_delay_sec = float(val) / 1000.0  # ms → s
+        config.bezier_delay_sec = float(val) / 1000.0  # ms 鈫?s
     
     def _on_aimbot_button_selected(self, val):
         for k, name in BUTTONS.items():
             if name == val:
                 config.selected_mouse_button = k
+                if hasattr(self, "tracker"):
+                    self.tracker.selected_mouse_button = k
                 self._log_config(f"Aim Key: {val}")
                 break
     
@@ -4376,10 +4488,23 @@ class ViewerApp(ctk.CTk):
                 config.selected_tb_btn = k
                 self._log_config(f"Trigger Key: {val}")
                 break
+
+    def _on_trigger_activation_type_selected(self, val):
+        trigger_activation_map = {
+            "Hold to Enable": "hold_enable",
+            "Hold to Disable": "hold_disable",
+            "Toggle": "toggle",
+            # backward compatibility for older saved labels
+            "按下啟用": "hold_enable",
+            "按下禁用": "hold_disable",
+            "切換": "toggle",
+        }
+        config.trigger_activation_type = trigger_activation_map.get(val, "hold_enable")
+        self._log_config(f"Trigger Mode: {val}")
     
     # Mouse Input Debug Callbacks
     def _on_debug_mouse_input_changed(self):
-        """滑鼠輸入調試開關改變"""
+        """婊戦紶杓稿叆瑾胯│闁嬮棞鏀硅畩"""
         enabled = self.debug_mouse_input_var.get()
         if enabled:
             self.mouse_input_monitor.enable()
@@ -4399,7 +4524,7 @@ class ViewerApp(ctk.CTk):
                     pass
     
     def _update_mouse_input_debug(self):
-        """定期更新滑鼠輸入調試顯示"""
+        """瀹氭湡鏇存柊婊戦紶杓稿叆瑾胯│椤ず"""
         # Only update if we're on the Debug tab and the switch is enabled
         try:
             if hasattr(self, 'debug_mouse_input_var') and self.debug_mouse_input_var.get():
@@ -4430,7 +4555,7 @@ class ViewerApp(ctk.CTk):
         self.after(50, self._update_mouse_input_debug)
     
     def _reset_button_count(self, button_idx: int):
-        """重置單個按鈕的計數"""
+        """閲嶇疆鍠€嬫寜閳曠殑瑷堟暩"""
         if hasattr(self.mouse_input_monitor, 'button_counts'):
             self.mouse_input_monitor.button_counts[button_idx] = 0
         if hasattr(self, 'debug_button_widgets') and button_idx in self.debug_button_widgets:
@@ -4440,7 +4565,7 @@ class ViewerApp(ctk.CTk):
                 pass
     
     def _reset_all_button_counts(self):
-        """重置所有按鈕的計數"""
+        """閲嶇疆鎵€鏈夋寜閳曠殑瑷堟暩"""
         self.mouse_input_monitor.reset_counts()
         if hasattr(self, 'debug_button_widgets'):
             for idx, widgets in self.debug_button_widgets.items():
@@ -4450,7 +4575,7 @@ class ViewerApp(ctk.CTk):
                     pass
     
     def _update_debug_log(self):
-        """定期更新 Debug 日誌顯示"""
+        """瀹氭湡鏇存柊 Debug 鏃ヨ獙椤ず"""
         try:
             if hasattr(self, 'debug_log_textbox'):
                 try:
@@ -4506,7 +4631,7 @@ class ViewerApp(ctk.CTk):
         self.after(100, self._update_debug_log)
     
     def _clear_debug_log(self):
-        """清空 Debug 日誌"""
+        """娓呯┖ Debug 鏃ヨ獙"""
         clear_logs()
         if hasattr(self, 'debug_log_textbox'):
             try:
@@ -4537,11 +4662,11 @@ class ViewerApp(ctk.CTk):
         self._log_config(f"Sec Aim Activation Type: {val}")
     
     def _on_button_mask_enabled_changed(self):
-        """Button Mask 總開關回調"""
+        """Button Mask 绺介枊闂滃洖瑾?"""
         config.button_mask_enabled = self.var_button_mask_enabled.get()
     
     def _on_button_mask_changed(self, key, var):
-        """單個按鈕 Mask 狀態改變回調"""
+        """鍠€嬫寜閳?Mask 鐙€鎱嬫敼璁婂洖瑾?"""
         value = var.get()
         setattr(config, key, value)
         button_names = {
@@ -4553,45 +4678,53 @@ class ViewerApp(ctk.CTk):
         }
     
     def _on_mouse_lock_main_x_changed(self):
-        """Mouse Lock Main Aimbot X-Axis 開關回調"""
+        """Mouse Lock Main Aimbot X-Axis 闁嬮棞鍥炶"""
         try:
             config.mouse_lock_main_x = self.var_mouse_lock_main_x.get()
-            # 不在此處調用 tick，讓主循環處理，避免阻塞 UI 線程
+            # 涓嶅湪姝よ檿瑾跨敤 tick锛岃畵涓诲惊鐠拌檿鐞嗭紝閬垮厤闃诲 UI 绶氱▼
         except Exception as e:
             log_print(f"[Mouse Lock] Error in main_x callback: {e}")
     
     def _on_mouse_lock_main_y_changed(self):
-        """Mouse Lock Main Aimbot Y-Axis 開關回調"""
+        """Mouse Lock Main Aimbot Y-Axis 闁嬮棞鍥炶"""
         try:
             config.mouse_lock_main_y = self.var_mouse_lock_main_y.get()
-            # 不在此處調用 tick，讓主循環處理，避免阻塞 UI 線程
+            # 涓嶅湪姝よ檿瑾跨敤 tick锛岃畵涓诲惊鐠拌檿鐞嗭紝閬垮厤闃诲 UI 绶氱▼
         except Exception as e:
             log_print(f"[Mouse Lock] Error in main_y callback: {e}")
     
     def _on_mouse_lock_sec_x_changed(self):
-        """Mouse Lock Sec Aimbot X-Axis 開關回調"""
+        """Mouse Lock Sec Aimbot X-Axis 闁嬮棞鍥炶"""
         try:
             config.mouse_lock_sec_x = self.var_mouse_lock_sec_x.get()
-            # 不在此處調用 tick，讓主循環處理，避免阻塞 UI 線程
+            # 涓嶅湪姝よ檿瑾跨敤 tick锛岃畵涓诲惊鐠拌檿鐞嗭紝閬垮厤闃诲 UI 绶氱▼
         except Exception as e:
             log_print(f"[Mouse Lock] Error in sec_x callback: {e}")
     
     def _on_mouse_lock_sec_y_changed(self):
-        """Mouse Lock Sec Aimbot Y-Axis 開關回調"""
+        """Mouse Lock Sec Aimbot Y-Axis 闁嬮棞鍥炶"""
         try:
             config.mouse_lock_sec_y = self.var_mouse_lock_sec_y.get()
-            # 不在此處調用 tick，讓主循環處理，避免阻塞 UI 線程
+            # 涓嶅湪姝よ檿瑾跨敤 tick锛岃畵涓诲惊鐠拌檿鐞嗭紝閬垮厤闃诲 UI 绶氱▼
         except Exception as e:
             log_print(f"[Mouse Lock] Error in sec_y callback: {e}")
     
     def _check_for_updates(self):
         """Check for updates in background"""
+        if self._update_check_in_progress:
+            return
+        self._update_check_in_progress = True
+        threading.Thread(target=self._check_for_updates_worker, daemon=True).start()
+
+    def _check_for_updates_worker(self):
         try:
             has_update, latest_version, update_info = self.update_checker.check_update()
             if has_update:
-                self._show_update_dialog(latest_version, update_info)
+                self.after(0, lambda: self._show_update_dialog(latest_version, update_info))
         except Exception as e:
             log_print(f"[Update] Failed to check for updates: {e}")
+        finally:
+            self._update_check_in_progress = False
     
     def _show_update_dialog(self, latest_version, update_info):
         """Show update dialog with update information"""
@@ -4730,7 +4863,7 @@ class UpdateDialog(ctk.CTkToplevel):
 
 
 class SettingsWindow(ctk.CTkToplevel):
-    """OpenCV 顯示設置視窗"""
+    """OpenCV 椤ず瑷疆瑕栫獥"""
     
     def __init__(self, parent):
         super().__init__(parent)
@@ -4740,20 +4873,20 @@ class SettingsWindow(ctk.CTkToplevel):
         self.geometry("400x600")
         self.resizable(False, False)
         
-        # 置中顯示
+        # 缃腑椤ず
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 400) // 2
         y = parent.winfo_y() + (parent.winfo_height() - 500) // 2
         self.geometry(f"+{x}+{y}")
         
-        # 設置為模態視窗
+        # 瑷疆鐐烘ā鎱嬭绐?
         self.transient(parent)
         self.grab_set()
         
-        # 關閉視窗時自動保存設置
+        # 闂滈枆瑕栫獥鏅傝嚜鍕曚繚瀛樿ō缃?
         self.protocol("WM_DELETE_WINDOW", self._on_save)
         
-        # 臨時儲存設置（用於取消）
+        # 鑷ㄦ檪鍎插瓨瑷疆锛堢敤鏂煎彇娑堬級
         self.temp_settings = {
             "show_opencv_windows": getattr(config, "show_opencv_windows", True),
             "show_opencv_mask": getattr(config, "show_opencv_mask", True),
@@ -4773,16 +4906,16 @@ class SettingsWindow(ctk.CTkToplevel):
         self._build_ui()
     
     def _build_ui(self):
-        """構建 UI"""
-        # 主容器 - 使用深色背景，填滿整個視窗
+        """妲嬪缓 UI"""
+        # 涓诲鍣?- 浣跨敤娣辫壊鑳屾櫙锛屽～婊挎暣鍊嬭绐?
         main_frame = ctk.CTkFrame(self, fg_color=COLOR_BG, corner_radius=0)
         main_frame.pack(fill="both", expand=True, padx=0, pady=0)
         
-        # 內部容器 (用於內容邊距)
+        # 鍏ч儴瀹瑰櫒 (鐢ㄦ柤鍏у閭婅窛)
         content_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, padx=25, pady=25)
         
-        # 標題
+        # 妯欓
         title_label = ctk.CTkLabel(
             content_frame,
             text="DISPLAY SETTINGS",
@@ -4791,26 +4924,26 @@ class SettingsWindow(ctk.CTkToplevel):
         )
         title_label.pack(pady=(0, 20), anchor="w")
         
-        # 分組1: 全局顯示設置
+        # 鍒嗙祫1: 鍏ㄥ眬椤ず瑷疆
         self._add_section_title(content_frame, "VISUAL SETTINGS")
         
-        # OpenCV 視窗總開關 (Switch)
+        # OpenCV 瑕栫獥绺介枊闂?(Switch)
         self.show_opencv_var = tk.BooleanVar(value=self.temp_settings["show_opencv_windows"])
         self._add_switch(content_frame, "Show OpenCV Windows", self.show_opencv_var)
 
-        # 分隔
+        # 鍒嗛殧
         self._add_spacer(content_frame)
         
-        # 分組1.5: OpenCV 視窗詳細設置
+        # 鍒嗙祫1.5: OpenCV 瑕栫獥瑭崇窗瑷疆
         self._add_section_title(content_frame, "OPENCV WINDOWS")
         
-        # 使用 Grid 佈局來排列 OpenCV 視窗開關
+        # 浣跨敤 Grid 浣堝眬渚嗘帓鍒?OpenCV 瑕栫獥闁嬮棞
         opencv_grid_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
         opencv_grid_frame.pack(fill="x", pady=5)
         opencv_grid_frame.grid_columnconfigure(0, weight=1)
         opencv_grid_frame.grid_columnconfigure(1, weight=1)
         
-        # 各項 OpenCV 視窗開關
+        # 鍚勯爡 OpenCV 瑕栫獥闁嬮棞
         self.show_opencv_mask_var = tk.BooleanVar(value=self.temp_settings["show_opencv_mask"])
         self._add_grid_switch(opencv_grid_frame, "MASK", self.show_opencv_mask_var, 0, 0)
         
@@ -4829,19 +4962,19 @@ class SettingsWindow(ctk.CTkToplevel):
         self.show_udp_raw_stream_var = tk.BooleanVar(value=self.temp_settings["show_udp_raw_stream_window"])
         self._add_grid_switch(opencv_grid_frame, "UDP Raw Stream", self.show_udp_raw_stream_var, 2, 1)
 
-        # 分隔
+        # 鍒嗛殧
         self._add_spacer(content_frame)
         
-        # 分組2: 文字資訊 (Overlay Elements)
+        # 鍒嗙祫2: 鏂囧瓧璩囪▕ (Overlay Elements)
         self._add_section_title(content_frame, "OVERLAY ELEMENTS")
         
-        # 使用 Grid 佈局來排列開關，使其更整齊
+        # 浣跨敤 Grid 浣堝眬渚嗘帓鍒楅枊闂滐紝浣垮叾鏇存暣榻?
         grid_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
         grid_frame.pack(fill="x", pady=5)
         grid_frame.grid_columnconfigure(0, weight=1)
         grid_frame.grid_columnconfigure(1, weight=1)
 
-        # 各項開關 (Switch instead of Checkbox for better look)
+        # 鍚勯爡闁嬮棞 (Switch instead of Checkbox for better look)
         self.show_mode_var = tk.BooleanVar(value=self.temp_settings["show_mode_text"])
         self._add_grid_switch(grid_frame, "Mode Info", self.show_mode_var, 0, 0)
         
@@ -4860,18 +4993,18 @@ class SettingsWindow(ctk.CTkToplevel):
         self.show_distance_var = tk.BooleanVar(value=self.temp_settings["show_distance_text"])
         self._add_grid_switch(grid_frame, "Distance Text", self.show_distance_var, 2, 1)
         
-        # 底部按鈕區域
-        # 使用 Spacer 推到底部
+        # 搴曢儴鎸夐垥鍗€鍩?
+        # 浣跨敤 Spacer 鎺ㄥ埌搴曢儴
         ctk.CTkFrame(content_frame, fg_color="transparent").pack(fill="both", expand=True)
         
-        # 分隔線
+        # 鍒嗛殧绶?
         ctk.CTkFrame(content_frame, height=1, fg_color=COLOR_BORDER).pack(fill="x", pady=(0, 15))
         
-        # 按鈕容器
+        # 鎸夐垥瀹瑰櫒
         button_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
         button_frame.pack(fill="x", pady=(0, 5))
         
-        # 取消按鈕 (Outlined)
+        # 鍙栨秷鎸夐垥 (Outlined)
         cancel_btn = ctk.CTkButton(
             button_frame,
             text="CANCEL",
@@ -4886,7 +5019,7 @@ class SettingsWindow(ctk.CTkToplevel):
         )
         cancel_btn.pack(side="left", expand=True, fill="x", padx=(0, 5))
         
-        # 保存按鈕 (Filled)
+        # 淇濆瓨鎸夐垥 (Filled)
         save_btn = ctk.CTkButton(
             button_frame,
             text="SAVE",
@@ -4939,8 +5072,8 @@ class SettingsWindow(ctk.CTkToplevel):
         switch.grid(row=row, column=col, sticky="w", pady=8, padx=5)
     
     def _on_save(self):
-        """保存設置"""
-        # 更新配置
+        """淇濆瓨瑷疆"""
+        # 鏇存柊閰嶇疆
         config.show_opencv_windows = self.show_opencv_var.get()
         config.show_opencv_mask = self.show_opencv_mask_var.get()
         config.show_opencv_detection = self.show_opencv_detection_var.get()
@@ -4955,12 +5088,15 @@ class SettingsWindow(ctk.CTkToplevel):
         config.show_crosshair = self.show_crosshair_var.get()
         config.show_distance_text = self.show_distance_var.get()
         
-        # 保存到文件
+        # 淇濆瓨鍒版枃浠?
         config.save_to_file()
         
-        # 關閉視窗
+        # 闂滈枆瑕栫獥
         self.destroy()
     
     def _on_cancel(self):
-        """取消並關閉 - 不保存任何更改，恢復原始設置"""
+        """鍙栨秷涓﹂棞闁?- 涓嶄繚瀛樹换浣曟洿鏀癸紝鎭㈠京鍘熷瑷疆"""
         self.destroy()
+
+
+
