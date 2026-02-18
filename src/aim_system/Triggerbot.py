@@ -26,6 +26,7 @@ _triggerbot_state = {
     "activation_last_pressed": False,
     "activation_toggle_state": False,
     "active_trigger_type": "current",
+    "deactivation_release_sent": False,
     "burst_lock": threading.Lock(),
 }
 
@@ -114,6 +115,7 @@ def _reset_tracking_state(reset_burst=False):
             _triggerbot_state["burst_state"] = None
             _triggerbot_state["activation_toggle_state"] = False
             _triggerbot_state["activation_last_pressed"] = False
+            _triggerbot_state["deactivation_release_sent"] = False
         elif _triggerbot_state["burst_state"] == "bursting":
             return
         _triggerbot_state["enter_range_time"] = None
@@ -168,6 +170,7 @@ def _execute_burst_sequence(
     burst_count = random.randint(int(burst_count_min), int(burst_count_max))
     with _triggerbot_state["burst_lock"]:
         _triggerbot_state["burst_state"] = "bursting"
+        _triggerbot_state["deactivation_release_sent"] = False
 
     button_pressed = False
     try:
@@ -205,6 +208,7 @@ def _execute_burst_sequence(
         with _triggerbot_state["burst_lock"]:
             _triggerbot_state["burst_state"] = None
             _triggerbot_state["burst_thread"] = None
+            _triggerbot_state["deactivation_release_sent"] = False
 
 
 def process_triggerbot(
@@ -273,17 +277,23 @@ def process_triggerbot(
         return activation_error
 
     if not activation_active:
+        should_release = False
         with _triggerbot_state["burst_lock"]:
             if _triggerbot_state["burst_state"] != "bursting":
                 _triggerbot_state["enter_range_time"] = None
                 _triggerbot_state["random_delay"] = None
                 _triggerbot_state["confirm_count"] = 0
                 _triggerbot_state["burst_state"] = None
+                _triggerbot_state["deactivation_release_sent"] = False
             else:
-                try:
-                    controller.release()
-                except Exception as exc:
-                    log_print(f"[Triggerbot button release error] {exc}")
+                if not bool(_triggerbot_state.get("deactivation_release_sent", False)):
+                    _triggerbot_state["deactivation_release_sent"] = True
+                    should_release = True
+        if should_release:
+            try:
+                controller.release()
+            except Exception as exc:
+                log_print(f"[Triggerbot button release error] {exc}")
         mode = str(getattr(config, "trigger_activation_type", "hold_enable")).strip().lower()
         _close_trigger_debug_windows()
         if mode == "toggle":
@@ -291,6 +301,8 @@ def process_triggerbot(
         if mode == "hold_disable":
             return "BUTTON_HELD_DISABLED"
         return "BUTTON_NOT_PRESSED"
+    with _triggerbot_state["burst_lock"]:
+        _triggerbot_state["deactivation_release_sent"] = False
 
     try:
         detect_img = source_img if source_img is not None else img

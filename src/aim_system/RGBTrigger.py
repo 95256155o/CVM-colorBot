@@ -146,6 +146,7 @@ def process_rgb_triggerbot(frame, img, controller, state_dict, close_debug_windo
             state_dict["enter_range_time"] = None
             state_dict["random_delay"] = None
             state_dict["confirm_count"] = 0
+            state_dict["deactivation_release_sent"] = False
         close_debug_windows()
         return "DISABLED"
 
@@ -162,15 +163,28 @@ def process_rgb_triggerbot(frame, img, controller, state_dict, close_debug_windo
             state_dict["enter_range_time"] = None
             state_dict["random_delay"] = None
             state_dict["confirm_count"] = 0
+            state_dict["deactivation_release_sent"] = False
         close_debug_windows()
         return activation_error
 
     if not activation_active:
-        _reset_wait_state(state_dict)
-        try:
-            controller.release()
-        except Exception:
-            pass
+        should_release = False
+        with state_dict["burst_lock"]:
+            if state_dict.get("burst_state") != "bursting":
+                state_dict["enter_range_time"] = None
+                state_dict["random_delay"] = None
+                state_dict["burst_state"] = None
+                state_dict["deactivation_release_sent"] = False
+            else:
+                if not bool(state_dict.get("deactivation_release_sent", False)):
+                    state_dict["deactivation_release_sent"] = True
+                    should_release = True
+            state_dict["confirm_count"] = 0
+        if should_release:
+            try:
+                controller.release()
+            except Exception:
+                pass
         mode = str(getattr(config, "trigger_activation_type", "hold_enable")).strip().lower()
         close_debug_windows()
         if mode == "toggle":
@@ -178,6 +192,8 @@ def process_rgb_triggerbot(frame, img, controller, state_dict, close_debug_windo
         if mode == "hold_disable":
             return "BUTTON_HELD_DISABLED"
         return "BUTTON_NOT_PRESSED"
+    with state_dict["burst_lock"]:
+        state_dict["deactivation_release_sent"] = False
 
     if cv2 is None:
         return "ERROR: OpenCV unavailable"
