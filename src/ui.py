@@ -1,4 +1,4 @@
-﻿"""
+"""
 UI 妯＄祫 - Ultra Minimalist 棰ㄦ牸
 铏曠悊鎵€鏈夌敤鎴剁晫闈㈢浉闂滅殑鍔熻兘
 """
@@ -534,6 +534,21 @@ class ViewerApp(ctk.CTk):
         
         # 鈹€鈹€ Custom HSV Settings (collapsible, only show when custom is selected) 鈹€鈹€
         # 鍓靛缓 container 浠ヤ究鎺у埗椤ず/闅辫棌锛堜笉鑷嫊 pack锛?
+        self._hsv_preview_btn_frame = ctk.CTkFrame(sec_settings, fg_color="transparent")
+        ctk.CTkButton(
+            self._hsv_preview_btn_frame,
+            text="HSV Filter Preview",
+            height=30,
+            fg_color=COLOR_SURFACE,
+            hover_color=COLOR_BORDER,
+            text_color=COLOR_ACCENT,
+            font=FONT_BOLD,
+            corner_radius=4,
+            border_width=1,
+            border_color=COLOR_BORDER,
+            command=self._open_hsv_preview,
+        ).pack(fill="x", padx=14, pady=(0, 8))
+
         self.custom_hsv_section, self.custom_hsv_container = self._create_collapsible_section(
             self.content_frame, "Custom HSV", initially_open=True, auto_pack=False
         )
@@ -568,22 +583,6 @@ class ViewerApp(ctk.CTk):
         
         # 鏍规摎鐣跺墠閬告搰椤ず/闅辫棌 Custom HSV 鍗€濉?
 
-        self._add_spacer_in_frame(self.custom_hsv_section)
-
-        # Botao para abrir o preview HSV
-        ctk.CTkButton(
-            self.custom_hsv_section,
-            text="Abrir Preview HSV",
-            height=30,
-            fg_color=COLOR_SURFACE,
-            hover_color=COLOR_BORDER,
-            text_color=COLOR_ACCENT,
-            font=FONT_BOLD,
-            corner_radius=4,
-            border_width=1,
-            border_color=COLOR_BORDER,
-            command=self._open_hsv_preview,
-        ).pack(fill="x", pady=(0, 6))
         self._update_custom_hsv_visibility()
         
         # 鈹€鈹€ DETECTION PARAMETERS (collapsible) 鈹€鈹€
@@ -4648,17 +4647,25 @@ class ViewerApp(ctk.CTk):
         self._update_custom_hsv_visibility()
     
     def _update_custom_hsv_visibility(self):
-        """鏍规摎鐣跺墠閬告搰鐨勯鑹叉洿鏂?Custom HSV 鍗€濉婄殑鍙鎬?"""
+        """Show or hide Custom HSV section and HSV Preview button based on selected color."""
+        current_color = getattr(config, "color", "yellow")
+        is_custom = current_color == "custom"
+
         if hasattr(self, 'custom_hsv_container'):
-            current_color = getattr(config, "color", "yellow")
-            if current_color == "custom":
-                # 椤ず Custom HSV 鍗€濉?
+            if is_custom:
                 if not self.custom_hsv_container.winfo_ismapped():
                     self.custom_hsv_container.pack(fill="x", pady=(5, 0))
             else:
-                # 闅辫棌 Custom HSV 鍗€濉?
                 if self.custom_hsv_container.winfo_ismapped():
                     self.custom_hsv_container.pack_forget()
+
+        if hasattr(self, '_hsv_preview_btn_frame'):
+            if is_custom:
+                if not self._hsv_preview_btn_frame.winfo_ismapped():
+                    self._hsv_preview_btn_frame.pack(fill="x", pady=(4, 0))
+            else:
+                if self._hsv_preview_btn_frame.winfo_ismapped():
+                    self._hsv_preview_btn_frame.pack_forget()
     
     def _on_custom_hsv_changed(self, key, val):
         """Custom HSV 鍊兼敼璁婃檪鐨勫洖瑾?"""
