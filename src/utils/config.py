@@ -86,6 +86,10 @@ class Config:
         self.mode_sec = "Normal"    # Sec Aimbot 妯″紡: Normal, Silent, NCAF, WindMouse, Bezier
 
         self.fovsize = 100
+        self.ads_fov_enabled = False
+        self.ads_fovsize = 100
+        self.ads_key = "Right Mouse Button"
+        self.ads_key_type = "hold"  # hold, toggle
         self.tbfovsize = 5 
         self.trigger_type = "current"  # current, rgb
         # Triggerbot delay range (seconds)
@@ -143,6 +147,10 @@ class Config:
         self.normalsmooth_sec = 20
         self.normalsmoothfov_sec = 20
         self.fovsize_sec = 150
+        self.ads_fov_enabled_sec = False
+        self.ads_fovsize_sec = 150
+        self.ads_key_sec = "Right Mouse Button"
+        self.ads_key_type_sec = "hold"  # hold, toggle
         self.selected_mouse_button_sec = 2
         self.aim_offsetX_sec = 0  # Sec Aimbot X 鍋忕Щ
         self.aim_offsetY_sec = 0  # Sec Aimbot Y 鍋忕Щ
@@ -362,6 +370,10 @@ class Config:
             "mode": self.mode,
             "mode_sec": self.mode_sec,
             "fovsize": self.fovsize,
+            "ads_fov_enabled": self.ads_fov_enabled,
+            "ads_fovsize": self.ads_fovsize,
+            "ads_key": self.ads_key,
+            "ads_key_type": self.ads_key_type,
             "tbfovsize": self.tbfovsize,
             "trigger_type": self.trigger_type,
             "tbdelay_min": self.tbdelay_min,
@@ -413,6 +425,10 @@ class Config:
             "normalsmooth_sec": self.normalsmooth_sec,
             "normalsmoothfov_sec": self.normalsmoothfov_sec,
             "fovsize_sec": self.fovsize_sec,
+            "ads_fov_enabled_sec": self.ads_fov_enabled_sec,
+            "ads_fovsize_sec": self.ads_fovsize_sec,
+            "ads_key_sec": self.ads_key_sec,
+            "ads_key_type_sec": self.ads_key_type_sec,
             "selected_mouse_button_sec": self.selected_mouse_button_sec,
             "aim_offsetX_sec": self.aim_offsetX_sec,
             "aim_offsetY_sec": self.aim_offsetY_sec,
@@ -555,6 +571,22 @@ class Config:
         except Exception:
             self.arduino_baud = 115200
         self.arduino_16_bit_mouse = bool(getattr(self, "arduino_16_bit_mouse", True))
+        self.ads_fov_enabled = bool(getattr(self, "ads_fov_enabled", False))
+        self.ads_fov_enabled_sec = bool(getattr(self, "ads_fov_enabled_sec", False))
+        try:
+            self.ads_fovsize = float(getattr(self, "ads_fovsize", getattr(self, "fovsize", 100)))
+        except Exception:
+            self.ads_fovsize = float(getattr(self, "fovsize", 100))
+        try:
+            self.ads_fovsize_sec = float(getattr(self, "ads_fovsize_sec", getattr(self, "fovsize_sec", 150)))
+        except Exception:
+            self.ads_fovsize_sec = float(getattr(self, "fovsize_sec", 150))
+        self.ads_key = str(getattr(self, "ads_key", "Right Mouse Button")).strip() or "Right Mouse Button"
+        self.ads_key_sec = str(getattr(self, "ads_key_sec", "Right Mouse Button")).strip() or "Right Mouse Button"
+        ads_key_type = str(getattr(self, "ads_key_type", "hold")).strip().lower()
+        self.ads_key_type = "toggle" if ads_key_type == "toggle" else "hold"
+        ads_key_type_sec = str(getattr(self, "ads_key_type_sec", "hold")).strip().lower()
+        self.ads_key_type_sec = "toggle" if ads_key_type_sec == "toggle" else "hold"
         # Backward compatibility: old config used `net_mac`.
         net_uuid = str(getattr(self, "net_uuid", "")).strip()
         net_mac = str(getattr(self, "net_mac", "")).strip()

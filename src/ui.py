@@ -8,6 +8,7 @@ import os
 import json
 import cv2
 import threading
+import time
 import webbrowser
 from PIL import Image
 from functools import partial
@@ -41,6 +42,54 @@ BUTTONS = {
     2: 'Middle Mouse Button',
     3: 'Side Mouse 4 Button',
     4: 'Side Mouse 5 Button'
+}
+BUTTON_NAME_TO_IDX = {name: idx for idx, name in BUTTONS.items()}
+
+ADS_KEY_DISPLAY_TO_BINDING = {
+    "Right Mouse Button": "Right Mouse Button",
+    "Left Mouse Button": "Left Mouse Button",
+    "Middle Mouse Button": "Middle Mouse Button",
+    "Side Mouse 4 Button": "Side Mouse 4 Button",
+    "Side Mouse 5 Button": "Side Mouse 5 Button",
+    "Left Shift": "LSHIFT",
+    "Right Shift": "RSHIFT",
+    "Left Ctrl": "LCONTROL",
+    "Right Ctrl": "RCONTROL",
+    "Left Alt": "LMENU",
+    "Right Alt": "RMENU",
+    "Space": "SPACE",
+    "E": "E",
+    "Q": "Q",
+    "F": "F",
+    "R": "R",
+    "C": "C",
+    "V": "V",
+    "X": "X",
+    "Z": "Z",
+    "W": "W",
+    "A": "A",
+    "S": "S",
+    "D": "D",
+}
+
+ADS_KEY_BINDING_TO_DISPLAY = {
+    str(binding).upper(): display for display, binding in ADS_KEY_DISPLAY_TO_BINDING.items()
+}
+
+BIND_CAPTURE_KEY_TOKENS = (
+    ["SPACE", "TAB", "ENTER", "ESCAPE", "LSHIFT", "RSHIFT", "LCONTROL", "RCONTROL", "LMENU", "RMENU", "UP", "DOWN", "LEFT", "RIGHT"]
+    + [chr(code) for code in range(ord("A"), ord("Z") + 1)]
+    + [str(num) for num in range(10)]
+    + [f"F{i}" for i in range(1, 13)]
+)
+
+ADS_KEY_TYPE_DISPLAY_TO_VALUE = {
+    "Hold": "hold",
+    "Toggle": "toggle",
+}
+
+ADS_KEY_TYPE_VALUE_TO_DISPLAY = {
+    str(value).lower(): display for display, value in ADS_KEY_TYPE_DISPLAY_TO_VALUE.items()
 }
 
 TRIGGER_TYPE_DISPLAY = {
@@ -257,7 +306,7 @@ class ViewerApp(ctk.CTk):
         self.nav_buttons = {}
         tabs = [
             ("General", self._show_general_tab),
-            ("Aimbot", self._show_aimbot_tab),
+            ("Main Aimbot", self._show_aimbot_tab),
             ("Sec Aimbot", self._show_sec_aimbot_tab),
             ("Trigger", self._show_tb_tab),
             ("RCS", self._show_rcs_tab),
@@ -415,6 +464,7 @@ class ViewerApp(ctk.CTk):
         command()
 
     def _clear_content(self):
+        self._cancel_binding_capture()
         for widget in self.content_frame.winfo_children():
             widget.destroy()
         # Clear widget maps to avoid stale destroyed references during config apply.
@@ -2079,9 +2129,9 @@ class ViewerApp(ctk.CTk):
                 self.capture_card_center_label.configure(text="Center: (0, 0)")
 
     def _show_aimbot_tab(self):
-        self._active_tab_name = "Aimbot"
+        self._active_tab_name = "Main Aimbot"
         self._clear_content()
-        self._add_title("Aimbot")
+        self._add_title("Main Aimbot")
         
         self.var_enableaim = tk.BooleanVar(value=getattr(config, "enableaim", False))
         self._add_switch("Enable Aimbot", self.var_enableaim, self._on_enableaim_changed)
@@ -2126,6 +2176,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Smooth", "normalsmoothfov", 1, 30,
                                       float(getattr(config, "normalsmoothfov", 10)),
                                       self._on_config_normal_smoothfov_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=False)
         
         elif current_mode == "Silent":
             self._add_subtitle_in_frame(sec_params, "SILENT PARAMETERS")
@@ -2146,6 +2197,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
                                       float(getattr(config, "fovsize", 300)),
                                       self._on_fovsize_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=False)
         
         elif current_mode == "NCAF":
             self._add_subtitle_in_frame(sec_params, "NCAF PARAMETERS")
@@ -2175,6 +2227,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "Near Radius (Inner)", "ncaf_near_radius", 5, 400,
                                       float(getattr(config, "ncaf_near_radius", 50)),
                                       self._on_ncaf_near_radius_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=False)
         
         elif current_mode == "WindMouse":
             self._add_subtitle_in_frame(sec_params, "WINDMOUSE PARAMETERS")
@@ -2204,6 +2257,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
                                       float(getattr(config, "fovsize", 300)),
                                       self._on_fovsize_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=False)
         
         elif current_mode == "Bezier":
             self._add_subtitle_in_frame(sec_params, "BEZIER PARAMETERS")
@@ -2227,6 +2281,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Size", "fovsize", 1, 1000,
                                       float(getattr(config, "fovsize", 300)),
                                       self._on_fovsize_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=False)
         
         # 鈹€鈹€ OFFSET (collapsible) 鈹€鈹€
         sec_offset = self._create_collapsible_section(self.content_frame, "Offset", initially_open=False)
@@ -2246,10 +2301,13 @@ class ViewerApp(ctk.CTk):
         
         # 鈹€鈹€ ACTIVATION (collapsible) 鈹€鈹€
         sec_activation = self._create_collapsible_section(self.content_frame, "Activation", initially_open=False)
-        self.aimbot_button_option = self._add_option_row_in_frame(sec_activation, "Keybind", list(BUTTONS.values()), self._on_aimbot_button_selected)
-        self._option_widgets["selected_mouse_button"] = self.aimbot_button_option
-        current_btn = getattr(config, "selected_mouse_button", 3)
-        self.aimbot_button_option.set(BUTTONS.get(current_btn, BUTTONS[3]))
+        current_btn = self._ads_binding_to_display(getattr(config, "selected_mouse_button", 3))
+        self.aim_key_bind_button = self._add_bind_capture_row_in_frame(
+            sec_activation,
+            "Keybind",
+            current_btn,
+            lambda: self._start_aim_key_capture(is_sec=False),
+        )
         
         # Activation Type
         activation_types = ["Hold to Enable", "Hold to Disable", "Toggle", "Press to Enable"]
@@ -2269,6 +2327,23 @@ class ViewerApp(ctk.CTk):
                 break
         else:
             self.aimbot_activation_type_option.set("Hold to Enable")
+
+        current_ads_key = self._ads_binding_to_display(getattr(config, "ads_key", "Right Mouse Button"))
+        self.ads_key_bind_button = self._add_bind_capture_row_in_frame(
+            sec_activation,
+            "ADS Keybind",
+            current_ads_key,
+            lambda: self._start_ads_key_capture(is_sec=False),
+        )
+        self.ads_key_type_option = self._add_option_row_in_frame(
+            sec_activation,
+            "ADS Key Type",
+            list(ADS_KEY_TYPE_DISPLAY_TO_VALUE.keys()),
+            self._on_ads_key_type_selected,
+        )
+        self._option_widgets["ads_key_type"] = self.ads_key_type_option
+        current_ads_key_type = str(getattr(config, "ads_key_type", "hold")).strip().lower()
+        self.ads_key_type_option.set(ADS_KEY_TYPE_VALUE_TO_DISPLAY.get(current_ads_key_type, "Hold"))
 
     def _show_sec_aimbot_tab(self):
         self._active_tab_name = "Sec Aimbot"
@@ -2318,6 +2393,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Smooth", "normalsmoothfov_sec", 1, 30,
                                       float(getattr(config, "normalsmoothfov_sec", 20)),
                                       self._on_config_normal_smoothfov_sec_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=True)
         
         elif current_mode_sec == "Silent":
             self._add_subtitle_in_frame(sec_params, "SENSITIVITY")
@@ -2332,6 +2408,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
                                       float(getattr(config, "fovsize_sec", 150)),
                                       self._on_fovsize_sec_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=True)
         
         elif current_mode_sec == "NCAF":
             self._add_subtitle_in_frame(sec_params, "NCAF PARAMETERS")
@@ -2361,6 +2438,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "Near Radius (Inner)", "ncaf_near_radius_sec", 5, 400,
                                       float(getattr(config, "ncaf_near_radius_sec", 50)),
                                       self._on_ncaf_near_radius_sec_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=True)
         
         elif current_mode_sec == "WindMouse":
             self._add_subtitle_in_frame(sec_params, "WINDMOUSE PARAMETERS")
@@ -2390,6 +2468,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
                                       float(getattr(config, "fovsize_sec", 150)),
                                       self._on_fovsize_sec_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=True)
         
         elif current_mode_sec == "Bezier":
             self._add_subtitle_in_frame(sec_params, "BEZIER PARAMETERS")
@@ -2413,6 +2492,7 @@ class ViewerApp(ctk.CTk):
             self._add_slider_in_frame(sec_params, "FOV Size", "fovsize_sec", 1, 1000,
                                       float(getattr(config, "fovsize_sec", 150)),
                                       self._on_fovsize_sec_changed)
+            self._add_ads_fov_controls_in_frame(sec_params, is_sec=True)
         
         # 鈹€鈹€ OFFSET (collapsible) 鈹€鈹€
         sec_offset = self._create_collapsible_section(self.content_frame, "Offset", initially_open=False)
@@ -2432,10 +2512,13 @@ class ViewerApp(ctk.CTk):
         
         # 鈹€鈹€ ACTIVATION (collapsible) 鈹€鈹€
         sec_activation = self._create_collapsible_section(self.content_frame, "Activation", initially_open=False)
-        self.aimbot_button_option_sec = self._add_option_row_in_frame(sec_activation, "Keybind", list(BUTTONS.values()), self._on_aimbot_button_sec_selected)
-        self._option_widgets["selected_mouse_button_sec"] = self.aimbot_button_option_sec
-        current_btn_sec = getattr(config, "selected_mouse_button_sec", 2)
-        self.aimbot_button_option_sec.set(BUTTONS.get(current_btn_sec, BUTTONS[2]))
+        current_btn_sec = self._ads_binding_to_display(getattr(config, "selected_mouse_button_sec", 2))
+        self.aim_key_bind_button_sec = self._add_bind_capture_row_in_frame(
+            sec_activation,
+            "Keybind",
+            current_btn_sec,
+            lambda: self._start_aim_key_capture(is_sec=True),
+        )
         
         # Activation Type
         activation_types = ["Hold to Enable", "Hold to Disable", "Toggle", "Press to Enable"]
@@ -2455,6 +2538,25 @@ class ViewerApp(ctk.CTk):
                 break
         else:
             self.aimbot_activation_type_option_sec.set("Hold to Enable")
+
+        current_ads_key_sec = self._ads_binding_to_display(getattr(config, "ads_key_sec", "Right Mouse Button"))
+        self.ads_key_bind_button_sec = self._add_bind_capture_row_in_frame(
+            sec_activation,
+            "ADS Keybind",
+            current_ads_key_sec,
+            lambda: self._start_ads_key_capture(is_sec=True),
+        )
+        self.ads_key_type_option_sec = self._add_option_row_in_frame(
+            sec_activation,
+            "ADS Key Type",
+            list(ADS_KEY_TYPE_DISPLAY_TO_VALUE.keys()),
+            self._on_ads_key_type_sec_selected,
+        )
+        self._option_widgets["ads_key_type_sec"] = self.ads_key_type_option_sec
+        current_ads_key_type_sec = str(getattr(config, "ads_key_type_sec", "hold")).strip().lower()
+        self.ads_key_type_option_sec.set(
+            ADS_KEY_TYPE_VALUE_TO_DISPLAY.get(current_ads_key_type_sec, "Hold")
+        )
 
     def _show_tb_tab(self):
         self._active_tab_name = "Trigger"
@@ -3166,6 +3268,31 @@ class ViewerApp(ctk.CTk):
         menu.grid(row=0, column=1, sticky="e")
         return menu
 
+    def _add_bind_capture_row_in_frame(self, parent, label_text, button_text, command):
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", pady=5)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_columnconfigure(1, weight=0)
+        ctk.CTkLabel(frame, text=label_text, font=FONT_MAIN, text_color=COLOR_TEXT).grid(
+            row=0, column=0, sticky="w", padx=(0, 10)
+        )
+        button = ctk.CTkButton(
+            frame,
+            text=str(button_text),
+            command=command,
+            font=FONT_MAIN,
+            text_color=COLOR_TEXT,
+            fg_color=COLOR_SURFACE,
+            hover_color=COLOR_BORDER,
+            border_width=1,
+            border_color=COLOR_BORDER,
+            corner_radius=0,
+            height=28,
+            width=180,
+        )
+        button.grid(row=0, column=1, sticky="e")
+        return button
+
     def _add_switch_in_frame(self, parent, text, variable, command):
         """鍦ㄦ寚瀹?parent frame 涓坊鍔?Switch"""
         switch = ctk.CTkSwitch(
@@ -3612,6 +3739,284 @@ class ViewerApp(ctk.CTk):
     def _set_btn_option_value(self, key, value_str):
         self._set_option_value(key, value_str)
 
+    def _add_ads_fov_controls_in_frame(self, parent, is_sec=False):
+        if is_sec:
+            enabled_key = "ads_fov_enabled_sec"
+            slider_key = "ads_fovsize_sec"
+            fallback_fov = getattr(config, "fovsize_sec", 150)
+            callback_enabled = self._on_ads_fov_enabled_sec_changed
+            callback_slider = self._on_ads_fovsize_sec_changed
+        else:
+            enabled_key = "ads_fov_enabled"
+            slider_key = "ads_fovsize"
+            fallback_fov = getattr(config, "fovsize", 300)
+            callback_enabled = self._on_ads_fov_enabled_changed
+            callback_slider = self._on_ads_fovsize_changed
+
+        var = tk.BooleanVar(value=bool(getattr(config, enabled_key, False)))
+        if is_sec:
+            self.var_ads_fov_enabled_sec = var
+        else:
+            self.var_ads_fov_enabled = var
+
+        self._add_switch_in_frame(parent, "Enable ADS FOV", var, callback_enabled)
+        self._checkbox_vars[enabled_key] = var
+
+        if var.get():
+            self._add_slider_in_frame(
+                parent,
+                "ADS FOV Size",
+                slider_key,
+                1,
+                1000,
+                float(getattr(config, slider_key, fallback_fov)),
+                callback_slider,
+            )
+
+    def _ads_binding_to_display(self, binding_value):
+        if binding_value is None:
+            return "Right Mouse Button"
+        try:
+            idx = int(binding_value)
+            if idx in BUTTONS:
+                return BUTTONS[idx]
+        except Exception:
+            pass
+        raw = str(binding_value).strip()
+        if not raw:
+            return "Right Mouse Button"
+        if raw in BUTTON_NAME_TO_IDX:
+            return raw
+        if raw.isdigit():
+            idx = int(raw)
+            if idx in BUTTONS:
+                return BUTTONS[idx]
+        if raw in ADS_KEY_DISPLAY_TO_BINDING:
+            return raw
+        token = raw.upper()
+        pretty_map = {
+            "SPACE": "Space",
+            "TAB": "Tab",
+            "ENTER": "Enter",
+            "ESCAPE": "Esc",
+            "LSHIFT": "Left Shift",
+            "RSHIFT": "Right Shift",
+            "LCONTROL": "Left Ctrl",
+            "RCONTROL": "Right Ctrl",
+            "LMENU": "Left Alt",
+            "RMENU": "Right Alt",
+            "UP": "Up Arrow",
+            "DOWN": "Down Arrow",
+            "LEFT": "Left Arrow",
+            "RIGHT": "Right Arrow",
+        }
+        if token in ADS_KEY_BINDING_TO_DISPLAY:
+            return ADS_KEY_BINDING_TO_DISPLAY[token]
+        if token in pretty_map:
+            return pretty_map[token]
+        if len(token) == 1 and token.isalnum():
+            return token
+        if token.startswith("F") and token[1:].isdigit():
+            return token
+        return raw
+
+    def _ads_display_to_binding(self, display_value):
+        return ADS_KEY_DISPLAY_TO_BINDING.get(str(display_value), "Right Mouse Button")
+
+    def _set_bind_button_text(self, button, text):
+        try:
+            if button is not None and hasattr(button, "winfo_exists") and bool(button.winfo_exists()):
+                button.configure(text=str(text))
+        except Exception:
+            pass
+
+    def _cancel_binding_capture(self):
+        ctx = getattr(self, "_binding_capture_ctx", None)
+        if not isinstance(ctx, dict):
+            self._binding_capture_ctx = None
+            return
+        button = ctx.get("button")
+        self._set_bind_button_text(button, ctx.get("restore_text", "Set"))
+        self._binding_capture_ctx = None
+
+    def _is_binding_pressed_by_backend(self, binding):
+        try:
+            from src.utils import mouse as mouse_backend
+        except Exception:
+            return False
+
+        mouse_idx = BUTTON_NAME_TO_IDX.get(str(binding), None)
+        try:
+            if mouse_idx is not None:
+                return bool(mouse_backend.is_button_pressed(int(mouse_idx)))
+            return bool(mouse_backend.is_key_pressed(binding))
+        except Exception:
+            return False
+
+    def _is_input_backend_connected(self):
+        try:
+            from src.utils import mouse as mouse_backend
+
+            return bool(getattr(mouse_backend, "is_connected", False))
+        except Exception:
+            return False
+
+    def _get_binding_capture_candidates(self):
+        mode = getattr(config, "mouse_api", "Serial")
+        keyboard_supported = self._supports_keyboard_state(mode)
+
+        # Keep deterministic order: mouse first, then keyboard.
+        candidates = list(BUTTONS.values())
+        if keyboard_supported:
+            for _, binding in ADS_KEY_DISPLAY_TO_BINDING.items():
+                if binding not in candidates:
+                    candidates.append(binding)
+            for binding in BIND_CAPTURE_KEY_TOKENS:
+                if binding not in candidates:
+                    candidates.append(binding)
+        return candidates, keyboard_supported
+
+    def _normalize_aim_binding_for_config(self, binding):
+        if binding is None:
+            return 3
+        idx = BUTTON_NAME_TO_IDX.get(str(binding), None)
+        if idx is not None:
+            return int(idx)
+        try:
+            parsed = int(binding)
+            if parsed in BUTTONS:
+                return int(parsed)
+        except Exception:
+            pass
+        return str(binding)
+
+    def _start_aim_key_capture(self, is_sec=False):
+        config_key = "selected_mouse_button_sec" if is_sec else "selected_mouse_button"
+        tracker_key = "selected_mouse_button_sec" if is_sec else "selected_mouse_button"
+        button = getattr(self, "aim_key_bind_button_sec" if is_sec else "aim_key_bind_button", None)
+        if button is None:
+            return
+
+        self._cancel_binding_capture()
+
+        candidates, keyboard_supported = self._get_binding_capture_candidates()
+        if not keyboard_supported:
+            self._log_config("Current Input API does not expose keyboard state; capture supports mouse buttons only.")
+        if not self._is_input_backend_connected():
+            self._log_config("Input API is not connected; key capture may timeout.")
+
+        prev_states = {binding: bool(self._is_binding_pressed_by_backend(binding)) for binding in candidates}
+        restore_binding = getattr(config, config_key, 2 if is_sec else 3)
+        restore_text = self._ads_binding_to_display(restore_binding)
+
+        ctx = {
+            "id": int(getattr(self, "_binding_capture_id", 0)) + 1,
+            "config_key": config_key,
+            "tracker_key": tracker_key,
+            "binding_kind": "aim",
+            "log_label": "Sec Aim Key" if is_sec else "Aim Key",
+            "button": button,
+            "restore_text": restore_text,
+            "candidates": candidates,
+            "prev_states": prev_states,
+            "started_at": time.monotonic(),
+            "arm_at": time.monotonic() + 0.35,
+            "timeout_sec": 10.0,
+        }
+        self._binding_capture_id = ctx["id"]
+        self._binding_capture_ctx = ctx
+        self._set_bind_button_text(button, "Press key...")
+        self.after(30, lambda capture_id=ctx["id"]: self._poll_binding_capture(capture_id))
+
+    def _start_ads_key_capture(self, is_sec=False):
+        key_name = "ads_key_sec" if is_sec else "ads_key"
+        tracker_attr = "ads_key_sec" if is_sec else "ads_key"
+        button = getattr(self, "ads_key_bind_button_sec" if is_sec else "ads_key_bind_button", None)
+        if button is None:
+            return
+
+        self._cancel_binding_capture()
+
+        candidates, keyboard_supported = self._get_binding_capture_candidates()
+        if not keyboard_supported:
+            self._log_config("Current Input API does not expose keyboard state; capture supports mouse buttons only.")
+        if not self._is_input_backend_connected():
+            self._log_config("Input API is not connected; key capture may timeout.")
+
+        prev_states = {binding: bool(self._is_binding_pressed_by_backend(binding)) for binding in candidates}
+        restore_binding = getattr(config, key_name, "Right Mouse Button")
+        restore_text = self._ads_binding_to_display(restore_binding)
+
+        ctx = {
+            "id": int(getattr(self, "_binding_capture_id", 0)) + 1,
+            "config_key": key_name,
+            "tracker_key": tracker_attr,
+            "binding_kind": "ads",
+            "log_label": "Sec ADS Key" if is_sec else "ADS Key",
+            "button": button,
+            "restore_text": restore_text,
+            "candidates": candidates,
+            "prev_states": prev_states,
+            "started_at": time.monotonic(),
+            "arm_at": time.monotonic() + 0.35,
+            "timeout_sec": 10.0,
+        }
+        self._binding_capture_id = ctx["id"]
+        self._binding_capture_ctx = ctx
+        self._set_bind_button_text(button, "Press key...")
+        self.after(30, lambda capture_id=ctx["id"]: self._poll_binding_capture(capture_id))
+
+    def _poll_binding_capture(self, capture_id):
+        ctx = getattr(self, "_binding_capture_ctx", None)
+        if not isinstance(ctx, dict):
+            return
+        if int(ctx.get("id", -1)) != int(capture_id):
+            return
+
+        now = time.monotonic()
+        if now - float(ctx.get("started_at", now)) > float(ctx.get("timeout_sec", 10.0)):
+            self._set_bind_button_text(ctx.get("button"), ctx.get("restore_text", "Set"))
+            self._binding_capture_ctx = None
+            label = str(ctx.get("log_label", "Key")).strip()
+            self._log_config(f"{label} capture timed out.")
+            return
+
+        candidates = list(ctx.get("candidates", []))
+        prev_states = dict(ctx.get("prev_states", {}))
+        selected_binding = None
+        for binding in candidates:
+            current_pressed = bool(self._is_binding_pressed_by_backend(binding))
+            prev_pressed = bool(prev_states.get(binding, False))
+            if now >= float(ctx.get("arm_at", now)) and current_pressed and not prev_pressed:
+                selected_binding = binding
+                prev_states[binding] = current_pressed
+                break
+            prev_states[binding] = current_pressed
+        ctx["prev_states"] = prev_states
+
+        if selected_binding is not None:
+            config_key = str(ctx.get("config_key", "ads_key"))
+            tracker_key = str(ctx.get("tracker_key", "ads_key"))
+            binding_kind = str(ctx.get("binding_kind", "ads")).strip().lower()
+            if binding_kind == "aim":
+                stored_value = self._normalize_aim_binding_for_config(selected_binding)
+            else:
+                stored_value = selected_binding
+
+            setattr(config, config_key, stored_value)
+            if hasattr(self, "tracker"):
+                setattr(self.tracker, tracker_key, stored_value)
+
+            display_name = self._ads_binding_to_display(stored_value)
+            self._set_bind_button_text(ctx.get("button"), display_name)
+            label = str(ctx.get("log_label", "Key")).strip()
+            self._log_config(f"{label}: {display_name}")
+            self._binding_capture_ctx = None
+            return
+
+        self._binding_capture_ctx = ctx
+        self.after(30, lambda: self._poll_binding_capture(capture_id))
+
     def _get_current_settings(self):
         """鐛插彇鐣跺墠鎵€鏈夎ō缃?- 鐩存帴浣跨敤 config.to_dict() 纰轰繚涓€鑷存€?"""
         return config.to_dict()
@@ -3641,6 +4046,9 @@ class ViewerApp(ctk.CTk):
             self.tracker.normalsmoothfov = config.normalsmoothfov
             self.tracker.mouse_dpi = config.mouse_dpi
             self.tracker.fovsize = config.fovsize
+            self.tracker.ads_fov_enabled = getattr(config, "ads_fov_enabled", False)
+            self.tracker.ads_fovsize = getattr(config, "ads_fovsize", config.fovsize)
+            self.tracker.ads_key = getattr(config, "ads_key", "Right Mouse Button")
             self.tracker.tbfovsize = config.tbfovsize
             self.tracker.trigger_type = getattr(config, "trigger_type", "current")
             self.tracker.tbdelay_min = config.tbdelay_min
@@ -3697,6 +4105,9 @@ class ViewerApp(ctk.CTk):
             self.tracker.normalsmooth_sec = config.normalsmooth_sec
             self.tracker.normalsmoothfov_sec = config.normalsmoothfov_sec
             self.tracker.fovsize_sec = config.fovsize_sec
+            self.tracker.ads_fov_enabled_sec = getattr(config, "ads_fov_enabled_sec", False)
+            self.tracker.ads_fovsize_sec = getattr(config, "ads_fovsize_sec", config.fovsize_sec)
+            self.tracker.ads_key_sec = getattr(config, "ads_key_sec", "Right Mouse Button")
             self.tracker.selected_mouse_button_sec = config.selected_mouse_button_sec
             
         except Exception as e:
@@ -3716,6 +4127,13 @@ class ViewerApp(ctk.CTk):
                 if k in self._option_widgets: 
                     if k in ["selected_mouse_button", "selected_tb_btn", "selected_mouse_button_sec"]:
                         self._set_btn_option_value(k, BUTTONS.get(v, str(v)))
+                    elif k in ("ads_key", "ads_key_sec"):
+                        self._set_option_value(k, self._ads_binding_to_display(v))
+                    elif k in ("ads_key_type", "ads_key_type_sec"):
+                        self._set_option_value(
+                            k,
+                            ADS_KEY_TYPE_VALUE_TO_DISPLAY.get(str(v).strip().lower(), "Hold"),
+                        )
                     elif k == "trigger_type":
                         trigger_type_display = {
                             "current": "Current",
@@ -3745,6 +4163,15 @@ class ViewerApp(ctk.CTk):
                         self._set_option_value(k, strafe_mode_display.get(str(v), "Off"))
                     else:
                         self._set_option_value(k, v)
+
+                if k == "selected_mouse_button" and hasattr(self, "aim_key_bind_button"):
+                    self._set_bind_button_text(self.aim_key_bind_button, self._ads_binding_to_display(v))
+                elif k == "selected_mouse_button_sec" and hasattr(self, "aim_key_bind_button_sec"):
+                    self._set_bind_button_text(self.aim_key_bind_button_sec, self._ads_binding_to_display(v))
+                elif k == "ads_key" and hasattr(self, "ads_key_bind_button"):
+                    self._set_bind_button_text(self.ads_key_bind_button, self._ads_binding_to_display(v))
+                elif k == "ads_key_sec" and hasattr(self, "ads_key_bind_button_sec"):
+                    self._set_bind_button_text(self.ads_key_bind_button_sec, self._ads_binding_to_display(v))
 
                 if k == "serial_auto_switch_4m":
                     self.saved_serial_auto_switch_4m = bool(v)
@@ -3794,6 +4221,26 @@ class ViewerApp(ctk.CTk):
                     if not self._supports_trigger_strafe_ui(getattr(config, "mouse_api", "Serial")):
                         config.trigger_strafe_mode = "off"
                     self._show_tb_tab()
+            if str(getattr(self, "_active_tab_name", "")) == "Main Aimbot":
+                if (
+                    "mode" in data
+                    or "mouse_api" in data
+                    or "selected_mouse_button" in data
+                    or "ads_fov_enabled" in data
+                    or "ads_key" in data
+                    or "ads_key_type" in data
+                ):
+                    self._show_aimbot_tab()
+            if str(getattr(self, "_active_tab_name", "")) == "Sec Aimbot":
+                if (
+                    "mode_sec" in data
+                    or "mouse_api" in data
+                    or "selected_mouse_button_sec" in data
+                    or "ads_fov_enabled_sec" in data
+                    or "ads_key_sec" in data
+                    or "ads_key_type_sec" in data
+                ):
+                    self._show_sec_aimbot_tab()
 
             from src.utils.detection import reload_model
             self.tracker.model, self.tracker.class_names = reload_model()
@@ -4232,6 +4679,16 @@ class ViewerApp(ctk.CTk):
             normalized = self._normalize_mouse_api_name(selected_mode)
             return normalized in {"SendInput", "Net", "KmboxA", "DHZ"}
 
+    def _supports_keyboard_state(self, mode=None) -> bool:
+        selected_mode = mode if mode is not None else getattr(config, "mouse_api", "Serial")
+        try:
+            from src.utils import mouse as mouse_backend
+
+            return bool(mouse_backend.supports_keyboard_state(selected_mode))
+        except Exception:
+            normalized = self._normalize_mouse_api_name(selected_mode)
+            return normalized in {"SendInput", "Net", "KmboxA", "DHZ"}
+
     def _toggle_hardware_info_details(self):
         self._hardware_info_expanded = not bool(getattr(self, "_hardware_info_expanded", False))
 
@@ -4496,6 +4953,9 @@ class ViewerApp(ctk.CTk):
             config.normalsmooth = self.tracker.normalsmooth
             config.normalsmoothfov = self.tracker.normalsmoothfov
             config.fovsize = self.tracker.fovsize
+            config.ads_fov_enabled = getattr(self.tracker, "ads_fov_enabled", getattr(config, "ads_fov_enabled", False))
+            config.ads_fovsize = getattr(self.tracker, "ads_fovsize", getattr(config, "ads_fovsize", config.fovsize))
+            config.ads_key = getattr(self.tracker, "ads_key", getattr(config, "ads_key", "Right Mouse Button"))
             config.tbfovsize = self.tracker.tbfovsize
             config.tbdelay_min = self.tracker.tbdelay_min
             config.tbdelay_max = self.tracker.tbdelay_max
@@ -4510,6 +4970,9 @@ class ViewerApp(ctk.CTk):
             config.normalsmooth_sec = self.tracker.normalsmooth_sec
             config.normalsmoothfov_sec = self.tracker.normalsmoothfov_sec
             config.fovsize_sec = self.tracker.fovsize_sec
+            config.ads_fov_enabled_sec = getattr(self.tracker, "ads_fov_enabled_sec", getattr(config, "ads_fov_enabled_sec", False))
+            config.ads_fovsize_sec = getattr(self.tracker, "ads_fovsize_sec", getattr(config, "ads_fovsize_sec", config.fovsize_sec))
+            config.ads_key_sec = getattr(self.tracker, "ads_key_sec", getattr(config, "ads_key_sec", "Right Mouse Button"))
             config.selected_mouse_button_sec = self.tracker.selected_mouse_button_sec
             
         except Exception as e:
@@ -4684,6 +5147,18 @@ class ViewerApp(ctk.CTk):
     
     def _on_enableaim_changed(self): 
         config.enableaim = self.var_enableaim.get()
+
+    def _on_ads_fov_enabled_changed(self):
+        config.ads_fov_enabled = self.var_ads_fov_enabled.get()
+        if hasattr(self, "tracker"):
+            self.tracker.ads_fov_enabled = config.ads_fov_enabled
+        if str(getattr(self, "_active_tab_name", "")) == "Main Aimbot":
+            self._show_aimbot_tab()
+
+    def _on_ads_fovsize_changed(self, val):
+        config.ads_fovsize = val
+        if hasattr(self, "tracker"):
+            self.tracker.ads_fovsize = val
     
     def _on_anti_smoke_changed(self):
         """Main Aimbot Anti-Smoke 闁嬮棞鍥炶"""
@@ -4816,7 +5291,7 @@ class ViewerApp(ctk.CTk):
         self._show_aimbot_tab()
         # 閲嶆柊楂樹寒姝ｇ⒑鐨勫皫鑸寜閳?
         for name, btn in self.nav_buttons.items():
-            if name == "Aimbot":
+            if name == "Main Aimbot":
                 btn.configure(text_color=COLOR_ACCENT)
             else:
                 btn.configure(text_color=COLOR_TEXT_DIM)
@@ -4865,6 +5340,18 @@ class ViewerApp(ctk.CTk):
     
     def _on_enableaim_sec_changed(self): 
         config.enableaim_sec = self.var_enableaim_sec.get()
+
+    def _on_ads_fov_enabled_sec_changed(self):
+        config.ads_fov_enabled_sec = self.var_ads_fov_enabled_sec.get()
+        if hasattr(self, "tracker"):
+            self.tracker.ads_fov_enabled_sec = config.ads_fov_enabled_sec
+        if str(getattr(self, "_active_tab_name", "")) == "Sec Aimbot":
+            self._show_sec_aimbot_tab()
+
+    def _on_ads_fovsize_sec_changed(self, val):
+        config.ads_fovsize_sec = val
+        if hasattr(self, "tracker"):
+            self.tracker.ads_fovsize_sec = val
     
     def _on_anti_smoke_sec_changed(self):
         """Secondary Aimbot Anti-Smoke 闁嬮棞鍥炶"""
@@ -5027,6 +5514,16 @@ class ViewerApp(ctk.CTk):
                     self.tracker.selected_mouse_button = k
                 self._log_config(f"Aim Key: {val}")
                 break
+
+    def _on_ads_key_selected(self, val):
+        config.ads_key = self._ads_display_to_binding(val)
+        if hasattr(self, "tracker"):
+            self.tracker.ads_key = config.ads_key
+        self._log_config(f"ADS Key: {val}")
+
+    def _on_ads_key_type_selected(self, val):
+        config.ads_key_type = ADS_KEY_TYPE_DISPLAY_TO_VALUE.get(str(val), "hold")
+        self._log_config(f"ADS Key Type: {val}")
     
     def _on_aimbot_activation_type_selected(self, val):
         activation_type_map = {
@@ -5251,6 +5748,16 @@ class ViewerApp(ctk.CTk):
                 config.selected_mouse_button_sec = k
                 self.tracker.selected_mouse_button_sec = k
                 break
+
+    def _on_ads_key_sec_selected(self, val):
+        config.ads_key_sec = self._ads_display_to_binding(val)
+        if hasattr(self, "tracker"):
+            self.tracker.ads_key_sec = config.ads_key_sec
+        self._log_config(f"Sec ADS Key: {val}")
+
+    def _on_ads_key_type_sec_selected(self, val):
+        config.ads_key_type_sec = ADS_KEY_TYPE_DISPLAY_TO_VALUE.get(str(val), "hold")
+        self._log_config(f"Sec ADS Key Type: {val}")
     
     def _on_aimbot_activation_type_sec_selected(self, val):
         activation_type_map = {

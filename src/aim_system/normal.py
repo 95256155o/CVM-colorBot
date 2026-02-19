@@ -10,7 +10,7 @@ import time
 
 from src.utils.config import config
 from src.utils.debug_logger import log_move, log_print
-from src.utils.activation import check_aimbot_activation
+from src.utils.activation import check_aimbot_activation, get_active_aim_fov
 from .Triggerbot import process_triggerbot
 from .RCS import process_rcs, check_y_release
 
@@ -172,14 +172,14 @@ def _apply_normal_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         y_speed = float(getattr(config, "normal_y_speed_sec", tracker.normal_y_speed_sec))
         smooth = float(getattr(config, "normalsmooth_sec", tracker.normalsmooth_sec))
         smoothfov = float(getattr(config, "normalsmoothfov_sec", tracker.normalsmoothfov_sec))
-        fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
+        fov = float(get_active_aim_fov(is_sec=True, fallback=tracker.fovsize_sec))
         label = "Sec Aimbot (Normal)"
     else:
         x_speed = float(getattr(config, "normal_x_speed", tracker.normal_x_speed))
         y_speed = float(getattr(config, "normal_y_speed", tracker.normal_y_speed))
         smooth = float(getattr(config, "normalsmooth", tracker.normalsmooth))
         smoothfov = float(getattr(config, "normalsmoothfov", tracker.normalsmoothfov))
-        fov = float(getattr(config, 'fovsize', tracker.fovsize))
+        fov = float(get_active_aim_fov(is_sec=False, fallback=tracker.fovsize))
         label = "Main Aimbot (Normal)"
     
     sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
@@ -314,7 +314,7 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         min_speed_multiplier = float(getattr(config, "ncaf_min_speed_multiplier_sec", 0.01))
         max_speed_multiplier = float(getattr(config, "ncaf_max_speed_multiplier_sec", 10.0))
         prediction_interval = float(getattr(config, "ncaf_prediction_interval_sec", 0.016))
-        fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
+        fov = float(get_active_aim_fov(is_sec=True, fallback=tracker.fovsize_sec))
         label = "Sec Aimbot (NCAF)"
     else:
         x_speed = float(getattr(config, "normal_x_speed", tracker.normal_x_speed))
@@ -327,7 +327,7 @@ def _apply_ncaf_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         min_speed_multiplier = float(getattr(config, "ncaf_min_speed_multiplier", 0.01))
         max_speed_multiplier = float(getattr(config, "ncaf_max_speed_multiplier", 10.0))
         prediction_interval = float(getattr(config, "ncaf_prediction_interval", 0.016))
-        fov = float(getattr(config, 'fovsize', tracker.fovsize))
+        fov = float(get_active_aim_fov(is_sec=False, fallback=tracker.fovsize))
         label = "Main Aimbot (NCAF)"
 
     sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
@@ -548,7 +548,7 @@ def _apply_bezier_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         ctrl_y = float(getattr(config, "bezier_ctrl_y_sec", 16.0))
         speed = float(getattr(config, "bezier_speed_sec", 1.0))
         delay = float(getattr(config, "bezier_delay_sec", 0.002))
-        fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
+        fov = float(get_active_aim_fov(is_sec=True, fallback=tracker.fovsize_sec))
         label = "Sec Aimbot (Bezier)"
     else:
         segments = int(getattr(config, "bezier_segments", 8))
@@ -556,7 +556,7 @@ def _apply_bezier_aim(dx, dy, distance_to_center, tracker, is_sec=False):
         ctrl_y = float(getattr(config, "bezier_ctrl_y", 16.0))
         speed = float(getattr(config, "bezier_speed", 1.0))
         delay = float(getattr(config, "bezier_delay", 0.002))
-        fov = float(getattr(config, 'fovsize', tracker.fovsize))
+        fov = float(get_active_aim_fov(is_sec=False, fallback=tracker.fovsize))
         label = "Main Aimbot (Bezier)"
 
     sens = float(getattr(config, "in_game_sens", tracker.in_game_sens))
@@ -695,7 +695,7 @@ def process_normal_mode(
             distance_to_center = math.hypot(cx - center_x, cy - center_y)
 
             # === 優先處理 Main Aimbot ===
-            main_fov = float(getattr(config, 'fovsize', tracker.fovsize))
+            main_fov = float(get_active_aim_fov(is_sec=False, fallback=tracker.fovsize))
             if distance_to_center <= main_fov:
                 if aim_enabled and selected_btn is not None and check_aimbot_activation(selected_btn, activation_type, is_sec=False):
                     try:
@@ -732,7 +732,7 @@ def process_normal_mode(
         cx, cy, _, head_y_min, body_y_max = _unpack_target(best_target_sec)
         if cx is not None and cy is not None:
             distance_to_center_sec = math.hypot(cx - center_x, cy - center_y)
-            sec_fov = float(getattr(config, 'fovsize_sec', tracker.fovsize_sec))
+            sec_fov = float(get_active_aim_fov(is_sec=True, fallback=tracker.fovsize_sec))
             if distance_to_center_sec <= sec_fov:
                 if aim_enabled_sec and selected_btn_sec is not None and check_aimbot_activation(selected_btn_sec, activation_type_sec, is_sec=True):
                     try:

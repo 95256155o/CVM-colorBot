@@ -17,6 +17,7 @@ except Exception:
 
 from src.utils.config import config
 from src.utils.mouse import Mouse, is_button_pressed
+from src.utils.activation import get_active_aim_fov
 from src.utils.detection import load_model, perform_detection
 from src.capture.capture_service import CaptureService
 from src.aim_system.normal import process_normal_mode
@@ -53,6 +54,9 @@ class AimTracker:
         self.normalsmoothfov = float(getattr(config, "normalsmoothfov", 10))
         self.mouse_dpi = float(getattr(config, "mouse_dpi", 800))
         self.fovsize = float(getattr(config, "fovsize", 300))
+        self.ads_fov_enabled = bool(getattr(config, "ads_fov_enabled", False))
+        self.ads_fovsize = float(getattr(config, "ads_fovsize", self.fovsize))
+        self.ads_key = getattr(config, "ads_key", "Right Mouse Button")
         self.tbfovsize = float(getattr(config, "tbfovsize", 70))
         # Triggerbot delay range
         self.tbdelay_min = float(getattr(config, "tbdelay_min", 0.08))
@@ -102,6 +106,9 @@ class AimTracker:
         self.normalsmooth_sec = float(getattr(config, "normalsmooth_sec", 20))
         self.normalsmoothfov_sec = float(getattr(config, "normalsmoothfov_sec", 20))
         self.fovsize_sec = float(getattr(config, "fovsize_sec", 150))
+        self.ads_fov_enabled_sec = bool(getattr(config, "ads_fov_enabled_sec", False))
+        self.ads_fovsize_sec = float(getattr(config, "ads_fovsize_sec", self.fovsize_sec))
+        self.ads_key_sec = getattr(config, "ads_key_sec", "Right Mouse Button")
         self.selected_mouse_button_sec = getattr(config, "selected_mouse_button_sec", 2)
         
         # --- Secondary Aimbot Offset & Aim Type ---
@@ -342,7 +349,8 @@ class AimTracker:
             mode_main = getattr(config, "mode", "Normal")
             # 鍦?NCAF 涓嬩笉鐣師鏈?FOV 鍦擄紝鍙’绀?NCAF 鍗婂緫
             if mode_main != "NCAF":
-                cv2.circle(img, (center_x, center_y), int(getattr(config, "fovsize", self.fovsize)), (255, 255, 255), 2)
+                main_fov = int(get_active_aim_fov(is_sec=False, fallback=self.fovsize))
+                cv2.circle(img, (center_x, center_y), main_fov, (255, 255, 255), 2)
                 # Correct: cercle smoothing = normalsmoothFOV
                 cv2.circle(img, (center_x, center_y), int(getattr(config, "normalsmoothfov", self.normalsmoothfov)), (51, 255, 255), 2)
             # NCAF Radius 鍦?(Main)
@@ -649,7 +657,7 @@ class AimTracker:
             # NCAF 鏅備笉绻＝鍘熸湰鐨?FOV 鍦?
             if mode_main != "NCAF":
                 # Main Aimbot FOV
-                main_fov = int(getattr(config, "fovsize", self.fovsize))
+                main_fov = int(get_active_aim_fov(is_sec=False, fallback=self.fovsize))
                 cv2.circle(img, (center_x, center_y), main_fov, (255, 255, 255), 2)
                 
                 # Smooth FOV
@@ -669,7 +677,7 @@ class AimTracker:
             if getattr(config, "enableaim_sec", False):
                 mode_sec = getattr(config, "mode_sec", "Normal")
                 if mode_sec != "NCAF":
-                    sec_fov = int(getattr(config, "fovsize_sec", self.fovsize_sec))
+                    sec_fov = int(get_active_aim_fov(is_sec=True, fallback=self.fovsize_sec))
                     # 鑸囦富鐬勬簴涓嶅悓鑹诧紝鎺＄敤闈掕壊
                     cv2.circle(img, (center_x, center_y), sec_fov, (255, 255, 0), 2)
                 
