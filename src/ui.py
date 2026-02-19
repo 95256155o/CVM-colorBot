@@ -1,6 +1,6 @@
 """
-UI 妯＄祫 - Ultra Minimalist 棰ㄦ牸
-铏曠悊鎵€鏈夌敤鎴剁晫闈㈢浉闂滅殑鍔熻兘
+UI 模組 - Ultra Minimalist 風格
+處理主視窗、分頁內容與設定互動 (GUI layer)
 """
 import customtkinter as ctk
 import tkinter as tk
@@ -23,16 +23,16 @@ from src.utils.debug_logger import get_recent_logs, clear_logs, get_log_count, l
 from src.utils.updater import get_update_checker
 from src.ui_hsv_preview import HsvPreviewWindow
 
-# --- 棰ㄦ牸閰嶇疆 (Ultra Minimalist) ---
-COLOR_BG = "#121212"          # 绲变竴娣辩伆鑳屾櫙
-COLOR_SIDEBAR = "#121212"     # 鑸囪儗鏅悓鑹诧紝鍍呴潬鐣欑櫧鍗€鍒?
-COLOR_SURFACE = "#1E1E1E"     # 妤垫贰鐨勮〃闈㈣壊锛岀敤鏂艰几鍏ユ
-COLOR_ACCENT = "#FFFFFF"      # 鐧借壊浣滅偤寮疯鑹?(妤电啊榛戠櫧)
+# --- Theme constants (繁中 + English) ---
+COLOR_BG = "#121212"          # 主背景色 Main background
+COLOR_SIDEBAR = "#121212"     # 側欄背景 Sidebar background
+COLOR_SURFACE = "#1E1E1E"     # 卡片/面板色 Surface color
+COLOR_ACCENT = "#FFFFFF"      # 強調色 Accent color
 COLOR_ACCENT_HOVER = "#E0E0E0"
-COLOR_TEXT = "#E0E0E0"        # 鐏扮櫧鏂囧瓧
-COLOR_TEXT_DIM = "#757575"    # 鏆楃伆杓斿姪鏂囧瓧
-COLOR_BORDER = "#2C2C2C"      # 闈炲父娣＄殑鍒嗗壊绶?
-COLOR_DANGER = "#CF6679"      # 鏌斿拰绱?
+COLOR_TEXT = "#E0E0E0"        # 主文字 Text
+COLOR_TEXT_DIM = "#757575"    # 次要文字 Secondary text
+COLOR_BORDER = "#2C2C2C"      # 邊框色 Border
+COLOR_DANGER = "#CF6679"      # 危險色 Danger
 COLOR_SUCCESS = "#4CAF50"
 
 FONT_MAIN = ("Roboto", 11)
@@ -42,6 +42,7 @@ FONT_TITLE = ("Roboto", 18, "bold")
 CVM_CONFIG_COMMENT_KEY = "_comment"
 CVM_CONFIG_COMMENT_VALUE = "This is CVM colorBot config."
 CF_HDROP = 15
+DRAG_QUERY_FILE_COUNT = 0xFFFFFFFF
 GMEM_MOVEABLE = 0x0002
 GMEM_ZEROINIT = 0x0040
 GHND = GMEM_MOVEABLE | GMEM_ZEROINIT
@@ -60,6 +61,7 @@ class DROPFILES(ctypes.Structure):
 if os.name == "nt":
     KERNEL32 = ctypes.WinDLL("kernel32", use_last_error=True)
     USER32 = ctypes.WinDLL("user32", use_last_error=True)
+    SHELL32 = ctypes.WinDLL("shell32", use_last_error=True)
 
     KERNEL32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
     KERNEL32.GlobalAlloc.restype = wintypes.HANDLE
@@ -76,11 +78,19 @@ if os.name == "nt":
     USER32.EmptyClipboard.restype = wintypes.BOOL
     USER32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
     USER32.SetClipboardData.restype = wintypes.HANDLE
+    USER32.GetClipboardData.argtypes = [wintypes.UINT]
+    USER32.GetClipboardData.restype = wintypes.HANDLE
+    USER32.IsClipboardFormatAvailable.argtypes = [wintypes.UINT]
+    USER32.IsClipboardFormatAvailable.restype = wintypes.BOOL
     USER32.CloseClipboard.argtypes = []
     USER32.CloseClipboard.restype = wintypes.BOOL
+
+    SHELL32.DragQueryFileW.argtypes = [wintypes.HANDLE, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
+    SHELL32.DragQueryFileW.restype = wintypes.UINT
 else:
     KERNEL32 = None
     USER32 = None
+    SHELL32 = None
 
 BUTTONS = {
     0: 'Left Mouse Button',
@@ -139,7 +149,7 @@ ADS_KEY_TYPE_VALUE_TO_DISPLAY = {
 }
 
 TRIGGER_TYPE_DISPLAY = {
-    "current": "Current",
+    "current": "Classic Trigger",
     "rgb": "RGB Trigger",
 }
 
@@ -156,55 +166,60 @@ TRIGGER_STRAFE_MODE_DISPLAY = {
 }
 
 class ViewerApp(ctk.CTk):
-    """涓绘噳鐢ㄧ▼寮?UI 椤?(Ultra Minimalist)"""
+    """主應用程式 UI (Ultra Minimalist)。"""
     
     def __init__(self, tracker, capture_service):
         super().__init__()
         
-        # --- 瑕栫獥瑷疆 ---
+        # --- Window setup ---
         self.title("CVM colorBot")
         self.geometry("1280x950")
         
-        # 娉ㄦ剰锛氫娇鐢?overrideredirect 鏈冨皫鑷翠换鍕欐瑒涓嶉’绀?
-        # 濡傛灉闇€瑕佷换鍕欐瑒鍦栨锛岃ɑ閲嬫帀涓嬮潰閫欒
+        # 注意: 若啟用 overrideredirect(True)，系統框線與 taskbar 行為可能不同
+        # If you need normal window decorations, keep it commented out.
         # self.overrideredirect(True)
         
         self.configure(fg_color=COLOR_BG)
         
-        # 瑷疆绐楀彛灞€т互纰轰繚浠诲嫏娆勯’绀?
+        # 預設不置頂，避免影響其他 app/focus
         self.attributes('-topmost', False)
         
-        # --- 鏁告摎寮曠敤 ---
+        # --- Core services ---
         self.tracker = tracker
         self.capture = capture_service
         
-        # --- 婊戦紶杓稿叆鐩ｆ帶 ---
+        # --- Mouse input monitor ---
         self.mouse_input_monitor = MouseInputMonitor()
         
         # --- Update Checker ---
         self.update_checker = get_update_checker()
         self._update_check_in_progress = False
         
-        # --- Debug tab 鐙€鎱嬭畩閲忥紙闇€瑕佸湪 __init__ 涓垵濮嬪寲浠ヤ繚鎸佺媭鎱嬶級 ---
+        # --- Debug tab state (init once to preserve tab-switch state) ---
         self.debug_mouse_input_var = tk.BooleanVar(value=False)
         
-        # --- UI 鐙€鎱?---
+        # --- UI runtime state ---
         self._slider_widgets = {}
         self._checkbox_vars = {}
         self._option_widgets = {}
         self._active_tab_name = "General"
+        self._clipboard_import_poll_interval_ms = 1200
+        self._clipboard_import_last_declined_signature = None
+        self._clipboard_import_last_declined_config_fingerprint = None
+        self._clipboard_import_imported_signatures = set()
+        self._clipboard_import_prompt_open = False
         raw_section_states = getattr(config, "ui_collapsible_states", {})
         self._collapsible_section_states = (
             dict(raw_section_states) if isinstance(raw_section_states, dict) else {}
         )
         self.current_frame = None
         
-        # 鍒濆鍖栨檪鎳夌敤 config 涓殑 capture_mode
+        # 啟動時使用 config.capture_mode
         init_mode = getattr(config, "capture_mode", "NDI")
         self.capture.set_mode(init_mode)
         self.capture_method_var = tk.StringVar(value=init_mode)
         
-        # --- Capture Controls 鐙€鎱嬩繚瀛橈紙寰?config 璁€鍙栵級 ---
+        # --- Capture control cache (restore from config) ---
         self.saved_udp_ip = getattr(config, "udp_ip", "127.0.0.1")
         self.saved_udp_port = getattr(config, "udp_port", "1234")
         self.saved_ndi_source = getattr(config, "last_ndi_source", None)
@@ -231,29 +246,30 @@ class ViewerApp(ctk.CTk):
         self._mouse_api_connect_timeout_ms = 12000
         self._serial_baud_switching = False
         
-        # --- 妲嬪缓鐣岄潰 ---
+        # --- Build layout ---
         self._build_layout()
         
-        # --- 鍟熷嫊浠诲嫏 ---
+        # --- Periodic jobs ---
         self.after(100, self._process_source_updates)
         self.after(500, self._update_connection_status_loop)
         self.after(200, self._load_initial_config)
-        self.after(300, self._update_performance_stats)  # 鎬ц兘绲辫▓鏇存柊
-        self.after(50, self._update_mouse_input_debug)  # 婊戦紶杓稿叆瑾胯│鏇存柊
-        self.after(100, self._update_debug_log)  # Debug 鏃ヨ獙鏇存柊
+        self.after(self._clipboard_import_poll_interval_ms, self._poll_clipboard_config_import)
+        self.after(300, self._update_performance_stats)  # 更新效能統計 Performance stats
+        self.after(50, self._update_mouse_input_debug)  # 更新滑鼠輸入監控 Mouse input debug
+        self.after(100, self._update_debug_log)  # 更新 Debug log
 
     def _build_layout(self):
-        """妲嬪缓浣堝眬锛氱劇鏄庨’閭婄晫鐨勫伌閭婃瑒 + 鍏у鍗€"""
+        """建立主版面：title bar + sidebar + content area。"""
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=1)
         
-        # 妯欓娆?(闅卞舰)
+        # 標題列 Title bar
         self._build_title_bar()
         
-        # 鍋撮倞娆?
+        # 側欄導覽 Sidebar
         self._build_sidebar()
         
-        # 鍏у鍗€
+        # 內容區 Content frame
         self.content_frame = ctk.CTkScrollableFrame(
             self, fg_color="transparent",
             scrollbar_button_color=COLOR_BORDER,
@@ -264,7 +280,7 @@ class ViewerApp(ctk.CTk):
         self._show_general_tab()
 
     def _build_title_bar(self):
-        """妤电啊妯欓娆?"""
+        """建立標題列 (title bar)。"""
         self.title_bar = ctk.CTkFrame(self, height=30, fg_color=COLOR_BG, corner_radius=0)
         self.title_bar.grid(row=0, column=0, columnspan=2, sticky="ew")
         
@@ -278,7 +294,7 @@ class ViewerApp(ctk.CTk):
         if os.path.exists(logo_path):
             try:
                 logo_image = Image.open(logo_path)
-                # 瑾挎暣鍦栨澶у皬鐐?20x20
+                # 調整 logo 尺寸為 20x20
                 logo_image = logo_image.resize((20, 20), Image.Resampling.LANCZOS)
                 logo_ctk = ctk.CTkImage(light_image=logo_image, dark_image=logo_image, size=(20, 20))
                 self.logo_lbl = ctk.CTkLabel(
@@ -311,7 +327,7 @@ class ViewerApp(ctk.CTk):
         # Update button (only show if update available)
         self.update_btn = None
         
-        # 闂滈枆鎸夐垥 (绱旀枃瀛?
+        # 關閉按鈕 Close button
         close_btn = ctk.CTkButton(
             self.title_bar, 
             text="X",
@@ -326,7 +342,7 @@ class ViewerApp(ctk.CTk):
         )
         close_btn.pack(side="right", padx=5)
         
-        # 鎷栧嫊
+        # 視窗拖曳事件 Drag behavior
         self.title_bar.bind("<Button-1>", self.start_move)
         self.title_bar.bind("<B1-Motion>", self.do_move)
         title_lbl.bind("<Button-1>", self.start_move)
@@ -336,16 +352,16 @@ class ViewerApp(ctk.CTk):
             self.logo_lbl.bind("<B1-Motion>", self.do_move)
 
     def _build_sidebar(self):
-        """鍋撮倞娆勶細绱斿湒妯欐垨绨＄磩鏂囧瓧"""
+        """建立側邊欄：navigation + status widgets。"""
         self.sidebar = ctk.CTkFrame(self, width=165, fg_color=COLOR_BG, corner_radius=0)
         self.sidebar.grid(row=1, column=0, sticky="ns")
         self.sidebar.grid_propagate(False)
         
-        # 鍒嗛殧绶?(绱板井)
+        # 分隔線 Separator
         sep = ctk.CTkFrame(self.sidebar, width=1, fg_color=COLOR_BORDER)
         sep.pack(side="right", fill="y")
 
-        # 灏庤埅瀹瑰櫒
+        # 導覽容器 Navigation container
         nav_container = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         nav_container.pack(fill="x", padx=20, pady=20)
         
@@ -365,11 +381,11 @@ class ViewerApp(ctk.CTk):
             self.nav_buttons[text] = btn
             btn.pack(pady=2, fill="x")
             
-        # 搴曢儴鍗€鍩?
+        # 側欄底部區塊 Bottom section
         bottom_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         bottom_frame.pack(side="bottom", fill="x", padx=20, pady=20)
         
-        # 涓婚鍒囨彌 (鏂囧瓧)
+        # 主題切換 Theme toggle
         self.theme_btn = ctk.CTkButton(
             bottom_frame,
             text="Dark Mode",
@@ -383,7 +399,7 @@ class ViewerApp(ctk.CTk):
         )
         self.theme_btn.pack(fill="x", pady=5)
         
-        # 鎬ц兘淇℃伅椤ず
+        # 效能資訊 Performance labels
         self.fps_label = ctk.CTkLabel(
             bottom_frame, 
             text="FPS: --", 
@@ -411,7 +427,7 @@ class ViewerApp(ctk.CTk):
         )
         self.total_delay_label.pack(fill="x", pady=2)
         
-        # 鐙€鎱?(妤电啊榛?
+        # 狀態指示器 Status indicator
         self.status_indicator = ctk.CTkLabel(
             bottom_frame,
             text="Status: Offline",
@@ -464,7 +480,7 @@ class ViewerApp(ctk.CTk):
         )
         self._update_hardware_status_ui()
         
-        # 瑷疆鎸夐垥
+        # 設定按鈕 Settings button
         settings_btn = ctk.CTkButton(
             bottom_frame,
             text="Settings",
@@ -494,7 +510,7 @@ class ViewerApp(ctk.CTk):
             height=35,
             fg_color="transparent",
             text_color=COLOR_TEXT_DIM,
-            hover_color=None, # 鐒¤儗鏅嚫鍋?
+            hover_color=None, # 保持透明背景，不做 hover fill
             anchor="w",
             font=FONT_BOLD,
             command=lambda: self._handle_nav_click(text, command)
@@ -504,7 +520,7 @@ class ViewerApp(ctk.CTk):
         self._active_tab_name = str(text)
         for btn_text, btn in self.nav_buttons.items():
             if btn_text == text:
-                btn.configure(text_color=COLOR_ACCENT) # 鍍呮敼璁婃枃瀛楅鑹?
+                btn.configure(text_color=COLOR_ACCENT)  # 當前 tab 只高亮文字
             else:
                 btn.configure(text_color=COLOR_TEXT_DIM)
         command()
@@ -527,7 +543,7 @@ class ViewerApp(ctk.CTk):
             ctk.set_appearance_mode("Dark")
             self.theme_btn.configure(text="Dark Mode")
 
-    # --- 闋侀潰鍏у ---
+    # --- 各分頁內容 Tabs ---
 
     def _show_general_tab(self):
         self._active_tab_name = "General"
@@ -2626,7 +2642,7 @@ class ViewerApp(ctk.CTk):
             self._on_trigger_type_selected,
         )
         self._option_widgets["trigger_type"] = self.trigger_type_option
-        self.trigger_type_option.set(TRIGGER_TYPE_DISPLAY.get(current_trigger_type, "Current"))
+        self.trigger_type_option.set(TRIGGER_TYPE_DISPLAY.get(current_trigger_type, "Classic Trigger"))
 
         if current_trigger_type == "rgb":
             sec_rgb = self._create_collapsible_section(self.content_frame, "RGB Parameters", initially_open=True)
@@ -2970,6 +2986,7 @@ class ViewerApp(ctk.CTk):
         btn_frame.pack(fill="x", pady=10)
         self._add_text_button(btn_frame, "SAVE", self._save_config).pack(side="left", padx=(0, 10))
         self._add_text_button(btn_frame, "LOAD", self._load_selected_config).pack(side="left", padx=(0, 10))
+        self._add_text_button(btn_frame, "DEL", self._delete_selected_config).pack(side="left", padx=(0, 10))
         self._add_text_button(btn_frame, "NEW", self._save_new_config).pack(side="left", padx=(0, 10))
         self._add_text_button(btn_frame, "EXPORT", self._export_selected_config).pack(side="left", padx=(0, 10))
         self._add_text_button(btn_frame, "IMPORT", self._import_config_file).pack(side="left")
@@ -2986,6 +3003,7 @@ class ViewerApp(ctk.CTk):
         self.config_log.pack(fill="x", pady=10)
         
         self._refresh_config_list()
+        self.after(100, self._maybe_prompt_clipboard_config_import)
 
     def _show_debug_tab(self):
         """椤ず Debug tab - 椤ず婊戦紶绉诲嫊鍜岄粸鎿婃棩瑾?"""
@@ -4321,10 +4339,10 @@ class ViewerApp(ctk.CTk):
                         )
                     elif k == "trigger_type":
                         trigger_type_display = {
-                            "current": "Current",
+                            "current": "Classic Trigger",
                             "rgb": "RGB Trigger",
                         }
-                        self._set_option_value(k, trigger_type_display.get(str(v).lower(), "Current"))
+                        self._set_option_value(k, trigger_type_display.get(str(v).lower(), "Classic Trigger"))
                     elif k == "rgb_color_profile":
                         rgb_profile_display = {
                             "red": "Red",
@@ -4509,6 +4527,363 @@ class ViewerApp(ctk.CTk):
         comment = str(data.get(CVM_CONFIG_COMMENT_KEY, "")).strip()
         return comment == CVM_CONFIG_COMMENT_VALUE
 
+    def _config_fingerprint(self, data):
+        normalized = self._strip_config_metadata(data)
+        try:
+            return json.dumps(normalized, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        except Exception:
+            fallback = {str(k): str(v) for k, v in dict(normalized).items()}
+            return json.dumps(fallback, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+    def _load_importable_settings_from_json_file(self, file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            raw_data = json.load(f)
+        if not isinstance(raw_data, dict):
+            raise ValueError("Imported file must contain a JSON object.")
+        if not self._has_valid_config_comment(raw_data):
+            raise ValueError("Invalid config file: missing CVM colorBot comment marker.")
+        settings = self._strip_config_metadata(raw_data)
+        if not isinstance(settings, dict):
+            raise ValueError("Imported config payload is invalid.")
+        return settings
+
+    def _center_modal_window(self, window, width, height):
+        try:
+            window.update_idletasks()
+            if self.winfo_exists():
+                x = self.winfo_x() + max(0, (self.winfo_width() - width) // 2)
+                y = self.winfo_y() + max(0, (self.winfo_height() - height) // 2)
+            else:
+                x = max(0, (window.winfo_screenwidth() - width) // 2)
+                y = max(0, (window.winfo_screenheight() - height) // 2)
+            window.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            window.geometry(f"{width}x{height}")
+
+    def _ask_dark_yes_no(self, title, message, yes_text="Yes", no_text="No"):
+        result = {"value": False}
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(title)
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=COLOR_BG)
+        dialog.transient(self)
+        dialog.grab_set()
+        self._center_modal_window(dialog, 460, 190)
+
+        def _close_with(value):
+            result["value"] = bool(value)
+            try:
+                dialog.grab_release()
+            except Exception:
+                pass
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", lambda: _close_with(False))
+
+        frame = ctk.CTkFrame(dialog, fg_color=COLOR_BG, corner_radius=0)
+        frame.pack(fill="both", expand=True, padx=16, pady=14)
+
+        ctk.CTkLabel(
+            frame,
+            text=message,
+            text_color=COLOR_TEXT,
+            font=("Roboto", 12),
+            wraplength=420,
+            justify="left",
+            anchor="w",
+        ).pack(fill="x", pady=(8, 18))
+
+        btn_row = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_row.pack(fill="x", side="bottom")
+
+        ctk.CTkButton(
+            btn_row,
+            text=no_text,
+            command=lambda: _close_with(False),
+            fg_color="transparent",
+            border_width=1,
+            border_color=COLOR_BORDER,
+            hover_color=COLOR_SURFACE,
+            text_color=COLOR_TEXT_DIM,
+            width=100,
+        ).pack(side="right")
+
+        ctk.CTkButton(
+            btn_row,
+            text=yes_text,
+            command=lambda: _close_with(True),
+            fg_color=COLOR_TEXT,
+            hover_color=COLOR_ACCENT_HOVER,
+            text_color=COLOR_BG,
+            width=100,
+        ).pack(side="right", padx=(0, 10))
+
+        dialog.wait_window()
+        return result["value"]
+
+    def _ask_dark_string(self, title, prompt, initialvalue=""):
+        result = {"value": None}
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(title)
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=COLOR_BG)
+        dialog.transient(self)
+        dialog.grab_set()
+        self._center_modal_window(dialog, 500, 210)
+
+        def _close_with(value):
+            result["value"] = value
+            try:
+                dialog.grab_release()
+            except Exception:
+                pass
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", lambda: _close_with(None))
+
+        frame = ctk.CTkFrame(dialog, fg_color=COLOR_BG, corner_radius=0)
+        frame.pack(fill="both", expand=True, padx=16, pady=14)
+
+        ctk.CTkLabel(
+            frame,
+            text=prompt,
+            text_color=COLOR_TEXT,
+            font=("Roboto", 12),
+            anchor="w",
+            justify="left",
+            wraplength=460,
+        ).pack(fill="x", pady=(8, 10))
+
+        entry = ctk.CTkEntry(
+            frame,
+            fg_color=COLOR_SURFACE,
+            text_color=COLOR_TEXT,
+            border_color=COLOR_BORDER,
+        )
+        entry.pack(fill="x", pady=(0, 18))
+        entry.insert(0, str(initialvalue or ""))
+        entry.focus_set()
+        entry.select_range(0, "end")
+
+        def _confirm():
+            _close_with(entry.get().strip())
+
+        btn_row = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_row.pack(fill="x", side="bottom")
+
+        ctk.CTkButton(
+            btn_row,
+            text="Cancel",
+            command=lambda: _close_with(None),
+            fg_color="transparent",
+            border_width=1,
+            border_color=COLOR_BORDER,
+            hover_color=COLOR_SURFACE,
+            text_color=COLOR_TEXT_DIM,
+            width=100,
+        ).pack(side="right")
+
+        ctk.CTkButton(
+            btn_row,
+            text="OK",
+            command=_confirm,
+            fg_color=COLOR_TEXT,
+            hover_color=COLOR_ACCENT_HOVER,
+            text_color=COLOR_BG,
+            width=100,
+        ).pack(side="right", padx=(0, 10))
+
+        dialog.bind("<Return>", lambda _evt: _confirm())
+        dialog.bind("<Escape>", lambda _evt: _close_with(None))
+        dialog.wait_window()
+        return result["value"]
+
+    def _import_config_settings(self, settings, source_name, import_title="Import", source_path=None, use_dark_dialog=False):
+        data = self._build_config_payload(settings)
+        target_path, normalized_name = self._resolve_config_path(source_name, force_new_suffix=True)
+
+        if os.path.exists(target_path):
+            same_source = False
+            if source_path:
+                try:
+                    same_source = os.path.abspath(target_path) == os.path.abspath(source_path)
+                except Exception:
+                    same_source = False
+            if not same_source:
+                prompt_text = f"Profile '{normalized_name}' already exists. Overwrite it?"
+                if use_dark_dialog:
+                    should_overwrite = self._ask_dark_yes_no(import_title, prompt_text)
+                else:
+                    should_overwrite = messagebox.askyesno(import_title, prompt_text)
+                if not should_overwrite:
+                    self._log_config(f"{import_title} canceled: {normalized_name}")
+                    return False, normalized_name
+
+        with open(target_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
+        self._refresh_config_list()
+        if hasattr(self, "config_option") and self.config_option.winfo_exists():
+            self.config_option.set(normalized_name)
+        self._apply_settings(settings, config_name=normalized_name)
+        self._log_config(f"Imported: {normalized_name}")
+        return True, normalized_name
+
+    def _get_clipboard_file_paths(self):
+        if os.name != "nt" or USER32 is None or SHELL32 is None:
+            return []
+
+        if not USER32.OpenClipboard(None):
+            return []
+
+        try:
+            if not USER32.IsClipboardFormatAvailable(CF_HDROP):
+                return []
+            h_drop = USER32.GetClipboardData(CF_HDROP)
+            if not h_drop:
+                return []
+
+            file_paths = []
+            count = int(SHELL32.DragQueryFileW(h_drop, DRAG_QUERY_FILE_COUNT, None, 0))
+            for idx in range(count):
+                length = int(SHELL32.DragQueryFileW(h_drop, idx, None, 0))
+                if length <= 0:
+                    continue
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                copied = int(SHELL32.DragQueryFileW(h_drop, idx, buffer, length + 1))
+                if copied <= 0:
+                    continue
+                path = str(buffer.value).strip()
+                if path:
+                    file_paths.append(path)
+            return file_paths
+        finally:
+            USER32.CloseClipboard()
+
+    def _get_clipboard_import_candidate(self):
+        try:
+            clipboard_text = str(self.clipboard_get() or "").strip()
+        except tk.TclError:
+            clipboard_text = ""
+        except Exception:
+            clipboard_text = ""
+
+        if clipboard_text:
+            try:
+                raw_data = json.loads(clipboard_text)
+                if isinstance(raw_data, dict) and self._has_valid_config_comment(raw_data):
+                    settings = self._strip_config_metadata(raw_data)
+                    return settings, "clipboard", "clipboard text"
+            except Exception:
+                pass
+
+            potential_path = clipboard_text.strip().strip("\"'")
+            if os.path.isfile(potential_path) and str(potential_path).lower().endswith(".json"):
+                try:
+                    settings = self._load_importable_settings_from_json_file(potential_path)
+                    source_name = self._normalize_config_display_name(
+                        os.path.splitext(os.path.basename(potential_path))[0]
+                    )
+                    return settings, source_name, f"clipboard path: {potential_path}"
+                except Exception:
+                    pass
+
+        for file_path in self._get_clipboard_file_paths():
+            if not str(file_path).lower().endswith(".json"):
+                continue
+            try:
+                settings = self._load_importable_settings_from_json_file(file_path)
+                source_name = self._normalize_config_display_name(
+                    os.path.splitext(os.path.basename(file_path))[0]
+                )
+                return settings, source_name, f"clipboard file: {file_path}"
+            except Exception:
+                continue
+
+        return None
+
+    def _poll_clipboard_config_import(self):
+        try:
+            self._maybe_prompt_clipboard_config_import()
+        except Exception as e:
+            log_print(f"[UI] Clipboard config poll error: {e}")
+        finally:
+            try:
+                if self.winfo_exists():
+                    self.after(self._clipboard_import_poll_interval_ms, self._poll_clipboard_config_import)
+            except Exception:
+                pass
+
+    def _maybe_prompt_clipboard_config_import(self):
+        if str(getattr(self, "_active_tab_name", "")) != "Config":
+            return
+        if not hasattr(self, "config_option") or not self.config_option.winfo_exists():
+            return
+        if self._clipboard_import_prompt_open:
+            return
+
+        candidate = self._get_clipboard_import_candidate()
+        if not candidate:
+            return
+
+        settings, suggested_name, source_label = candidate
+        current_settings = self._strip_config_metadata(self._get_current_settings())
+        current_fingerprint = self._config_fingerprint(current_settings)
+        incoming_fingerprint = self._config_fingerprint(settings)
+
+        if incoming_fingerprint in self._clipboard_import_imported_signatures:
+            return
+
+        if incoming_fingerprint == current_fingerprint:
+            return
+
+        if (
+            incoming_fingerprint == self._clipboard_import_last_declined_signature
+            and current_fingerprint == self._clipboard_import_last_declined_config_fingerprint
+        ):
+            return
+
+        self._clipboard_import_prompt_open = True
+        try:
+            should_import = self._ask_dark_yes_no(
+                "Import",
+                "Detected a CVM config in clipboard. Do you want to import it?",
+            )
+            if not should_import:
+                self._clipboard_import_last_declined_signature = incoming_fingerprint
+                self._clipboard_import_last_declined_config_fingerprint = current_fingerprint
+                self._log_config(f"Clipboard import skipped: {source_label}")
+                return
+
+            default_name = self._normalize_config_display_name(suggested_name or "clipboard")
+            entered_name = self._ask_dark_string(
+                "Config name",
+                "Enter the config name:",
+                initialvalue=default_name,
+            )
+            if not entered_name:
+                self._clipboard_import_last_declined_signature = incoming_fingerprint
+                self._clipboard_import_last_declined_config_fingerprint = current_fingerprint
+                self._log_config("Clipboard import canceled: no config name.")
+                return
+
+            success, normalized_name = self._import_config_settings(
+                settings,
+                source_name=entered_name,
+                import_title="Import",
+                use_dark_dialog=True,
+            )
+            if success:
+                self._clipboard_import_last_declined_signature = None
+                self._clipboard_import_last_declined_config_fingerprint = None
+                self._clipboard_import_imported_signatures.add(incoming_fingerprint)
+                messagebox.showinfo("Import", f"Imported config: {normalized_name}")
+            else:
+                self._clipboard_import_last_declined_signature = incoming_fingerprint
+                self._clipboard_import_last_declined_config_fingerprint = current_fingerprint
+        finally:
+            self._clipboard_import_prompt_open = False
+
     def _copy_file_to_clipboard(self, file_path):
         if os.name != "nt" or USER32 is None or KERNEL32 is None:
             raise RuntimeError("File clipboard export is only supported on Windows.")
@@ -4611,39 +4986,63 @@ class ViewerApp(ctk.CTk):
             return
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                raw_data = json.load(f)
-            if not isinstance(raw_data, dict):
-                raise ValueError("Imported file must contain a JSON object.")
-            if not self._has_valid_config_comment(raw_data):
-                raise ValueError("Invalid config file: missing CVM colorBot comment marker.")
-
-            settings = self._strip_config_metadata(raw_data)
-            data = self._build_config_payload(settings)
-
+            settings = self._load_importable_settings_from_json_file(file_path)
             source_name = self._normalize_config_display_name(os.path.splitext(os.path.basename(file_path))[0])
-            target_path, normalized_name = self._resolve_config_path(source_name, force_new_suffix=True)
-
-            if os.path.exists(target_path) and os.path.abspath(target_path) != os.path.abspath(file_path):
-                should_overwrite = messagebox.askyesno(
-                    "Import",
-                    f"Profile '{normalized_name}' already exists. Overwrite it?",
-                )
-                if not should_overwrite:
-                    self._log_config(f"Import canceled: {normalized_name}")
-                    return
-
-            with open(target_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4, ensure_ascii=False)
-
-            self._refresh_config_list()
-            self.config_option.set(normalized_name)
-            self._apply_settings(settings, config_name=normalized_name)
-            self._log_config(f"Imported: {normalized_name}")
-            messagebox.showinfo("Import", f"Imported config: {normalized_name}")
+            success, normalized_name = self._import_config_settings(
+                settings,
+                source_name=source_name,
+                import_title="Import",
+                source_path=file_path,
+                use_dark_dialog=True,
+            )
+            if success:
+                messagebox.showinfo("Import", f"Imported config: {normalized_name}")
         except Exception as e:
             self._log_config(f"Import error: {e}")
             messagebox.showerror("Import", f"Import failed:\n{e}")
+
+    def _delete_selected_config(self):
+        try:
+            self._refresh_config_list()
+            file_map = dict(getattr(self, "_config_file_map", {}))
+            display_names = sorted(file_map.keys(), key=lambda item: str(item).lower())
+
+            if len(display_names) <= 1:
+                self._log_config("Delete blocked: at least one config must remain.")
+                messagebox.showwarning("Delete", "At least one config must remain.")
+                return
+
+            selected = self._normalize_config_display_name(self.config_option.get())
+            if selected not in file_map:
+                selected = display_names[0]
+
+            filename = file_map.get(selected)
+            if not filename:
+                self._log_config("Delete error: no config selected.")
+                return
+
+            target_path = os.path.join("configs", filename)
+            if not os.path.isfile(target_path):
+                self._log_config(f"Delete error: file not found ({selected})")
+                messagebox.showerror("Delete", f"Config file not found:\n{target_path}")
+                return
+
+            should_delete = self._ask_dark_yes_no(
+                "Delete",
+                f"Delete config '{selected}'?\nThis action cannot be undone.",
+                yes_text="Delete",
+                no_text="Cancel",
+            )
+            if not should_delete:
+                self._log_config(f"Delete canceled: {selected}")
+                return
+
+            os.remove(target_path)
+            self._log_config(f"Deleted: {selected}")
+            self._refresh_config_list()
+        except Exception as e:
+            self._log_config(f"Delete error: {e}")
+            messagebox.showerror("Delete", f"Delete failed:\n{e}")
 
     def _refresh_config_list(self):
         raw_files = [f for f in os.listdir("configs") if str(f).lower().endswith(".json")]
@@ -5935,6 +6334,7 @@ class ViewerApp(ctk.CTk):
 
     def _on_trigger_type_selected(self, val):
         trigger_type_map = {
+            "Classic Trigger": "current",
             "Current": "current",
             "RGB Trigger": "rgb",
         }
