@@ -3,6 +3,7 @@ Aimbot activation state helpers.
 Supports mouse-button and keyboard-key bindings.
 """
 
+import time
 import threading
 
 from src.utils.config import config
@@ -15,12 +16,14 @@ _activation_states = {
         "toggle_state": False,
         "use_enable_state": False,
         "last_button_state": False,
+        "quick_shot_end_time": 0,
         "lock": threading.Lock(),
     },
     "sec": {
         "toggle_state": False,
         "use_enable_state": False,
         "last_button_state": False,
+        "quick_shot_end_time": 0,
         "lock": threading.Lock(),
     },
 }
@@ -186,6 +189,13 @@ def check_aimbot_activation(button_idx, activation_type: str, is_sec: bool = Fal
             if not last_pressed and current_pressed:
                 state["toggle_state"] = not state["toggle_state"]
             result = state["toggle_state"]
+
+        elif activation_type == "quick_shot":
+            if not last_pressed and current_pressed:
+                duration = float(getattr(config, "quick_shot_duration_sec", 0.2))
+                state["quick_shot_end_time"] = time.time() + max(0.01, duration)
+            
+            result = time.time() < state["quick_shot_end_time"]
 
         elif activation_type == "use_enable":
             if not last_pressed and current_pressed:

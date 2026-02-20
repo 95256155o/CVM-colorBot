@@ -81,6 +81,10 @@ class Config:
         # --- Aimbot Activation Type ---
         self.aimbot_activation_type = "hold_enable"  # Main Aimbot: hold_enable, hold_disable, toggle, use_enable
         self.aimbot_activation_type_sec = "hold_enable"  # Sec Aimbot: hold_enable, hold_disable, toggle, use_enable
+        
+        # --- Quick Shot Mode ---
+        self.quick_shot_duration_sec = 0.2
+        
         # --- Aimbot Mode ---
         self.mode = "Normal"        # Main Aimbot 妯″紡: Normal, Silent, NCAF, WindMouse, Bezier
         self.mode_sec = "Normal"    # Sec Aimbot 妯″紡: Normal, Silent, NCAF, WindMouse, Bezier
@@ -96,9 +100,18 @@ class Config:
         self.trigger_ads_key = "Right Mouse Button"
         self.trigger_ads_key_type = "hold"  # hold, toggle
         self.trigger_type = "current"  # current, rgb
+        
+        # --- Triggerbot Strafe Helper ---
+        self.trigger_strafe_mode = "off"
+        self.trigger_strafe_key = "space"
+        self.trigger_strafe_toggle_key = "v"
+        self.trigger_strafe_force_key = "lshift"
+        self.trigger_strafe_delay = 0.09
+        self.trigger_strafe_hold = 0.05
+
         # Triggerbot delay range (seconds)
         self.tbdelay_min = 0.08
-        self.tbdelay_max = 0.15
+        self.tbdelay_max = 0.12
         # Triggerbot hold range (milliseconds)
         self.tbhold_min = 40
         self.tbhold_max = 60
@@ -373,6 +386,9 @@ class Config:
             "dhz_random": self.dhz_random,
             "aimbot_activation_type": self.aimbot_activation_type,
             "aimbot_activation_type_sec": self.aimbot_activation_type_sec,
+            
+            # Quick Shot Mode
+            "quick_shot_duration_sec": self.quick_shot_duration_sec,
             
             # Aimbot Mode
             "mode": self.mode,

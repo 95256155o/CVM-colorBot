@@ -41,12 +41,12 @@ _DEFAULT_BACKEND_CAPABILITIES = {
 _BACKEND_CAPABILITIES = {
     "Serial": {
         "keyboard_output": True,
-        "keyboard_state": False,
+        "keyboard_state": True,
         "trigger_strafe_ui": False,
     },
     "Arduino": {
         "keyboard_output": False,
-        "keyboard_state": False,
+        "keyboard_state": True,
         "trigger_strafe_ui": False,
     },
     "SendInput": {
@@ -66,12 +66,12 @@ _BACKEND_CAPABILITIES = {
     },
     "MakV2": {
         "keyboard_output": True,
-        "keyboard_state": False,
+        "keyboard_state": True,
         "trigger_strafe_ui": False,
     },
     "MakV2Binary": {
         "keyboard_output": True,
-        "keyboard_state": False,
+        "keyboard_state": True,
         "trigger_strafe_ui": False,
     },
     "DHZ": {
