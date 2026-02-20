@@ -21,8 +21,9 @@ jobs:
           # Destination: Gitee repository (format: gitee/username)
           dst: gitee/asenyeroao-ct
           # Gitee SSH private key (for authentication)
+          # Note: Must be the full private key including BEGIN/END lines
           dst_key: ${{ secrets.GITEE_PRIVATE_KEY }}
-          # Gitee access token (for API operations)
+          # Gitee access token (for API operations like creating repos)
           dst_token: ${{ secrets.GITEE_TOKEN }}
           # Static list: only sync this specific repository
           static_list: CVM-colorBot
@@ -32,3 +33,5 @@ jobs:
           account_type: user
           # White list: only sync this repository
           white_list: CVM-colorBot
+          # Debug mode for troubleshooting
+          debug: true
