@@ -589,52 +589,63 @@ def count_bits(n: int) -> int:
     return bin(n).count("1")
 
 
-def is_button_pressed(idx: int) -> bool:
+def is_button_pressed(button_idx: int) -> bool:
+    """Check mouse button pressed state."""
     if not state.is_connected:
         _sync_public_state()
         return False
 
     if state.active_backend == "Net":
-        return NetAPI.is_button_pressed(idx)
+        return NetAPI.is_button_pressed(button_idx)
     if state.active_backend == "KmboxA":
-        return KmboxAAPI.is_button_pressed(idx)
+        return KmboxAAPI.is_button_pressed(button_idx)
     if state.active_backend == "DHZ":
-        return DHZAPI.is_button_pressed(idx)
+        return DHZAPI.is_button_pressed(button_idx)
     if state.active_backend == "MakV2Binary":
-        return MakV2Binary.is_button_pressed(idx)
+        return MakV2Binary.is_button_pressed(button_idx)
     if state.active_backend == "MakV2":
-        return MakV2.is_button_pressed(idx)
+        return MakV2.is_button_pressed(button_idx)
     if state.active_backend == "Arduino":
-        return ArduinoAPI.is_button_pressed(idx)
+        return ArduinoAPI.is_button_pressed(button_idx)
     if state.active_backend == "SendInput":
-        return SendInputAPI.is_button_pressed(idx)
+        return SendInputAPI.is_button_pressed(button_idx)
     if state.active_backend == "Ferrum":
-        return FerrumAPI.is_button_pressed(idx)
-    return SerialAPI.is_button_pressed(idx)
+        return FerrumAPI.is_button_pressed(button_idx)
+    return SerialAPI.is_button_pressed(button_idx)
 
 
 def is_key_pressed(key) -> bool:
+    """Check keyboard key pressed state."""
+    # Always use SendInputAPI for local keyboard state detection,
+    # regardless of the selected output backend.
+    return SendInputAPI.is_key_pressed(key)
+
+
+def get_button_state_by_name(name: str) -> bool:
+    """
+    Check mouse button pressed state by name.
+    """
     if not state.is_connected:
         _sync_public_state()
         return False
 
     if state.active_backend == "Net":
-        return NetAPI.is_key_pressed(key)
+        return NetAPI.is_button_pressed(name)
     if state.active_backend == "KmboxA":
-        return KmboxAAPI.is_key_pressed(key)
+        return KmboxAAPI.is_button_pressed(name)
     if state.active_backend == "DHZ":
-        return DHZAPI.is_key_pressed(key)
+        return DHZAPI.is_button_pressed(name)
     if state.active_backend == "MakV2Binary":
-        return MakV2Binary.is_key_pressed(key)
+        return MakV2Binary.is_button_pressed(name)
     if state.active_backend == "MakV2":
-        return MakV2.is_key_pressed(key)
+        return MakV2.is_button_pressed(name)
     if state.active_backend == "Arduino":
-        return ArduinoAPI.is_key_pressed(key)
+        return ArduinoAPI.is_button_pressed(name)
     if state.active_backend == "SendInput":
-        return SendInputAPI.is_key_pressed(key)
+        return SendInputAPI.is_button_pressed(name)
     if state.active_backend == "Ferrum":
-        return FerrumAPI.is_key_pressed(key)
-    return SerialAPI.is_key_pressed(key)
+        return FerrumAPI.is_button_pressed(name)
+    return SerialAPI.is_button_pressed(name)
 
 
 def key_down(key):

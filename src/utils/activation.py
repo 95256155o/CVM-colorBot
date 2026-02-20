@@ -193,6 +193,7 @@ def check_aimbot_activation(button_idx, activation_type: str, is_sec: bool = Fal
         elif activation_type == "quick_shot":
             if not last_pressed and current_pressed:
                 duration = float(getattr(config, "quick_shot_duration_sec", 0.2))
+                duration = 0.2 
                 state["quick_shot_end_time"] = time.time() + max(0.01, duration)
             
             result = time.time() < state["quick_shot_end_time"]

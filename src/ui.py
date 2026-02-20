@@ -2680,7 +2680,8 @@ class ViewerApp(ctk.CTk):
             "Hold to Enable": "hold_enable",
             "Hold to Disable": "hold_disable",
             "Toggle": "toggle",
-            "Press to Enable": "use_enable"
+            "Press to Enable": "use_enable",
+            "Quick Shot": "quick_shot",
         }
         self.aimbot_activation_type_option = self._add_option_row_in_frame(sec_activation, "Type", activation_types, self._on_aimbot_activation_type_selected)
         self._option_widgets["aimbot_activation_type"] = self.aimbot_activation_type_option
@@ -6850,7 +6851,8 @@ class ViewerApp(ctk.CTk):
             "Hold to Enable": "hold_enable",
             "Hold to Disable": "hold_disable",
             "Toggle": "toggle",
-            "Press to Enable": "use_enable"
+            "Press to Enable": "use_enable",
+            "Quick Shot": "quick_shot",
         }
         config.aimbot_activation_type = activation_type_map.get(val, "hold_enable")
         self._log_config(f"Aim Activation Type: {val}")
