@@ -15,6 +15,9 @@ env/
 ENV/
 .venv
 
+# Test / cache
+.pytest_cache/
+
 # IDE
 .vscode/
 .idea/
@@ -28,6 +31,7 @@ ENV/
 configs/*
 !configs/default.json
 !configs/default_cvm.json
+docs
 docs/
 *.log
 *.tmp
@@ -76,6 +80,7 @@ logs/
 .github/GENERATE_SSH_KEY.md
 .github/SYNC_SETUP.md
 .github/TROUBLESHOOTING.md
+.github/QUICK_FIX.md
 
 # Mouse API folders
 # kmB - ignore entire folder
