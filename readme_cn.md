@@ -6,7 +6,7 @@
   [![Discord](https://img.shields.io/badge/Discord-加入服务器-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/pJ8JkSBnMB)
 </div>
 
-CVM colorbot 是一个基于计算机视觉的鼠标瞄准系统，使用 HSV 颜色检测技术，配合 MAKCU 硬件。支持 NDI、UDP 和采集卡输入，提供可自定义的灵敏度、平滑度、FOV 设置和反烟雾过滤功能，适用于精确的双 PC 瞄准工作流程。
+CVM-colorBot 是一款基于计算机视觉的鼠标瞄准系统，使用 HSV 颜色检测。支持多种视频采集源（NDI、UDP、采集卡、GStreamer、MSS）与多种鼠标控制后端（Serial/MAKCU、Arduino、SendInput、Net、KmboxA、MakV2、DHZ、Ferrum）。可自定义灵敏度、平滑度、FOV 与反烟雾过滤，适用于双 PC 或单 PC 的精确瞄准工作流程。
 
 ## 功能特性
 
@@ -17,14 +17,38 @@ CVM colorbot 是一个基于计算机视觉的鼠标瞄准系统，使用 HSV �
 - **反烟雾检测**：高级过滤功能，避免瞄准烟雾中的目标
 
 ### 视频采集支持
-- **NDI**：网络设备接口，用于流式视频源
-- **UDP**：高速 UDP 视频流
-- **采集卡**：直接采集卡输入支持
+
+多种采集后端，适配双 PC 或单 PC 方案：
+
+| 后端 | 说明 | 典型用途 |
+|--------|-------------|-------------|
+| **NDI** | 网络设备接口，通过局域网从 NDI 源（如 OBS、NDI Tools）低延迟获取视频。 | 双 PC：游戏 PC 发送 NDI，瞄准 PC 接收。 |
+| **UDP** | 兼容 OBS 的 UDP 视频流，可配置 IP 与端口。 | 双 PC：OBS 或其他编码器发送 UDP 流。 |
+| **采集卡** | 通过 DirectShow/Media Foundation 从采集卡直接采集。 | 双 PC：游戏 PC HDMI 接入瞄准 PC 的采集卡。 |
+| **采集卡 (GStreamer)** | 可选采集卡后端，需安装 [GStreamer](docs/shared-guides/zh-CN/GStreamer-install.md)。 | DirectShow/Media Foundation 不适用时使用。 |
+| **MSS** | 内置屏幕采集（Multiple Screen Shot），无需额外硬件。 | 单 PC 或测试；采集本机画面。 |
+
+- **统一接口**：一个采集服务可在 NDI、UDP、采集卡、GStreamer、MSS 之间切换。
+- **分辨率与 FPS**：在支持的后端上可配置。
 
 ### 硬件集成
-- **MAKCU USB 设备**：通过串口通信实现高速鼠标控制
-- **多设备支持**：兼容 MAKCU、CH343、CH340、CH347 和 CP2102
-- **高速通信**：可配置波特率，最高 4Mbps
+
+鼠标控制支持多种后端，请在 Config 标签页选择「Mouse API」。
+
+| 后端 | 连接方式 | 备注 |
+|--------|------------|--------|
+| **Serial** | USB 串口（MAKCU 或兼容适配器） | MAKCU (1A86:55D3)、CH343、CH340、CH347、CP2102，波特率最高 4 Mbps。 |
+| **Arduino** | USB 串口（Arduino 兼容） | 可配置端口与波特率（默认 115200）。 |
+| **SendInput** | Windows API | 无需额外硬件，使用 Windows SendInput 控制鼠标/键盘。 |
+| **Net** | 网络（TCP + DLL） | 通过网络远程鼠标控制，需 KMNet DLL 与网络端设备。 |
+| **KmboxA** | USB（VID/PID） | KmboxA 设备，在配置中设置 VID/PID。 |
+| **MakV2** / **MakV2Binary** | USB 串口 | MakV2 系列，可配置端口与波特率（如 4Mbps）。 |
+| **DHZ** | 网络（IP + 端口） | DHZ 设备经网络连接，IP、端口及可选随机偏移。 |
+| **Ferrum** | 串口（设备路径） | Ferrum 设备，串口连接。 |
+
+- **自动连接**：可选在启动时连接所选 Mouse API。
+- **按键遮罩与移动锁定**：在 Serial、MakV2、MakV2Binary 等后端上支持（视后端而定）。
+- **键盘输出**：Serial、SendInput、Net、KmboxA、MakV2、MakV2Binary、DHZ、Ferrum 支持（具体以界面为准）。
 
 ### 自定义选项
 - 可调节的灵敏度和平滑度
@@ -40,8 +64,8 @@ CVM colorbot 是一个基于计算机视觉的鼠标瞄准系统，使用 HSV �
 - USB 端口用于连接 MAKCU
 
 ### 软件
-- Python 3.12+
-- Windows 操作系统
+- **Python 3.11 ～ 3.13.x**（例如 3.11.x、3.12.x、3.13.7）。已测试至 3.13.7；**不支持 Python 3.14**。（依賴如 NumPy 2.2.x 官方支援 3.10～3.13，建議使用 3.11+。）
+- Windows 操作系统（10/11）
 
 ## 安装
 
@@ -105,8 +129,8 @@ CVM colorbot 是一个基于计算机视觉的鼠标瞄准系统，使用 HSV �
    - 应用程序将自动检测并连接
 
 2. **配置视频源**
-   - 选择采集方法：NDI、UDP 或采集卡
-   - 根据您选择的方法配置连接设置
+   - 选择采集方式：NDI、UDP、采集卡、GStreamer 或 MSS
+   - 根据所选方式配置连接参数
    - 点击 "CONNECT" 建立连接
 
 3. **调整设置**
@@ -121,16 +145,16 @@ CVM colorbot 是一个基于计算机视觉的鼠标瞄准系统，使用 HSV �
 - **Sec Aimbot（次要自瞄）**：次要自瞄配置
 - **Trigger（扳机）**：扳机设置、延迟、保持时间、连发控制
 - **RCS**：后坐力控制系统参数
-- **Config（配置）**：保存/加载配置配置文件
+- **Config（配置）**：保存/加载配置档
 
 ## 项目结构
 
 ```
 CVM-colorBot/
-├── main.py                 # 主应用程序入口点
-├── requirements.txt        # Python 依赖项
-├── config.json            # 应用程序配置
-├── run.bat                # Windows 启动器
+├── main.py                 # 主应用程序入口
+├── requirements.txt        # Python 依赖
+├── config.json            # 应用配置
+├── run.bat                # Windows 启动脚本
 ├── setup.bat              # 安装脚本
 ├── src/
 │   ├── ui.py              # GUI 界面（CustomTkinter）
@@ -141,15 +165,18 @@ CVM-colorBot/
 │   │   ├── RCS.py         # 后坐力控制系统
 │   │   └── anti_smoke_detector.py
 │   ├── capture/           # 视频采集模块
-│   │   ├── capture_service.py
-│   │   ├── ndi.py         # NDI 采集
-│   │   ├── CaptureCard.py # 采集卡支持
-│   │   └── OBS_UDP.pyx    # UDP 流
+│   │   ├── capture_service.py   # 统一采集服务
+│   │   ├── ndi.py               # NDI 采集
+│   │   ├── OBS_UDP.py           # UDP 流（兼容 OBS）
+│   │   ├── CaptureCard.py       # 采集卡（DirectShow/Media Foundation）
+│   │   ├── CaptureCardGStreamer.py  # 采集卡（GStreamer，可选）
+│   │   └── mss_capture.py       # MSS 屏幕采集
 │   └── utils/             # 工具模块
 │       ├── config.py      # 配置管理
 │       ├── detection.py   # HSV 颜色检测
-│       └── mouse.py       # MAKCU 鼠标控制
-├── configs/               # 配置配置文件
+│       ├── mouse_input.py
+│       └── mouse/         # 鼠标控制后端（Serial、Arduino、SendInput、Net、KmboxA、MakV2、DHZ、Ferrum）
+├── configs/               # 配置档
 └── themes/                # UI 主题
 ```
 
@@ -165,22 +192,27 @@ CVM-colorBot/
 
 ## 支持的设备
 
-### 串口适配器
-- MAKCU (1A86:55D3)
-- CH343 (1A86:5523)
-- CH340 (1A86:7523)
-- CH347 (1A86:5740)
-- CP2102 (10C4:EA60)
+### 鼠标 / 控制后端
+- **Serial**：MAKCU (1A86:55D3)、CH343 (1A86:5523)、CH340 (1A86:7523)、CH347 (1A86:5740)、CP2102 (10C4:EA60)
+- **Arduino**：Arduino 兼容板通过 USB 串口
+- **SendInput**：Windows 内置（无需设备）
+- **Net**：配合 KMNet DLL 的网络设备
+- **KmboxA**：KmboxA USB 设备（可配置 VID/PID）
+- **MakV2 / MakV2Binary**：MakV2 系列通过串口
+- **DHZ**：DHZ 设备经网络（IP/端口）
+- **Ferrum**：Ferrum 设备经串口
 
-### 视频源
-- NDI 源（通过网络设备接口）
-- UDP 视频流
-- 采集卡（通过 DirectShow/Media Foundation）
+### 视频采集源
+- **NDI**：网络上任意 NDI 源（如 NDI Tools、带 NDI 输出的 OBS）
+- **UDP**：任意 UDP 视频流（如 OBS UDP 推流）
+- **采集卡**：兼容 DirectShow/Media Foundation 的采集卡
+- **采集卡 (GStreamer)**：同一硬件配合 GStreamer 管线（可选）
+- **MSS**：本机屏幕采集（无需采集卡）
 
 ## 技术细节
 
 - **颜色检测**：基于 HSV 颜色空间的目标识别
-- **鼠标控制**：通过 MAKCU 设备进行高速串口通信
+- **鼠标控制**：支持多种后端（Serial/MAKCU、SendInput、Net 等），Serial 下可经 MAKCU 等设备高速串口通信
 - **视频处理**：使用 OpenCV 进行实时帧处理
 - **GUI 框架**：使用 CustomTkinter 构建现代化、可自定义的界面
 - **多线程**：异步处理以确保流畅性能

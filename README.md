@@ -6,7 +6,7 @@
   [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/pJ8JkSBnMB)
 </div>
 
-CVM colorbot is a computer-vision mouse aiming system using HSV color detection with MAKCU hardware. Supports NDI, UDP, and Capture Card input, offering customizable sensitivity, smoothing, FOV settings, and anti-smoke filtering for precise 2-PC aiming workflows.
+CVM-colorBot is a computer-vision mouse aiming system using HSV color detection. It supports multiple video capture sources (NDI, UDP, Capture Card, GStreamer, MSS) and multiple mouse-control backends (Serial/MAKCU, Arduino, SendInput, Net, KmboxA, MakV2, DHZ, Ferrum). Customizable sensitivity, smoothing, FOV, and anti-smoke filtering make it suitable for precise 2-PC or single-PC aiming workflows.
 
 ## Features
 
@@ -17,14 +17,38 @@ CVM colorbot is a computer-vision mouse aiming system using HSV color detection 
 - **Anti-Smoke Detection**: Advanced filtering to avoid targeting through smoke
 
 ### Video Capture Support
-- **NDI**: Network Device Interface for streaming video sources
-- **UDP**: High-speed UDP video streaming
-- **Capture Card**: Direct capture card input support
+
+Multiple capture backends for different 2-PC or single-PC setups:
+
+| Backend | Description | Typical Use |
+|--------|-------------|-------------|
+| **NDI** | Network Device Interface; low-latency video over LAN from NDI sources (e.g. OBS, NDI Tools). | Dual-PC: game PC sends NDI, aim PC receives. |
+| **UDP** | OBS-compatible UDP video streaming; configurable IP and port. | Dual-PC: OBS or other encoder sends UDP stream. |
+| **Capture Card** | Direct capture from capture cards via DirectShow/Media Foundation. | Dual-PC: HDMI from game PC into capture card on aim PC. |
+| **Capture Card (GStreamer)** | Optional capture-card backend using GStreamer; requires [GStreamer](docs/shared-guides/zh-CN/GStreamer-install.md) installed. | When DirectShow/Media Foundation is insufficient. |
+| **MSS** | Built-in screen capture (Multiple Screen Shot); no extra hardware. | Single-PC or testing; captures local screen. |
+
+- **Unified interface**: One capture service switches between NDI, UDP, Capture Card, GStreamer, or MSS.
+- **Resolution & FPS**: Configurable per backend where supported.
 
 ### Hardware Integration
-- **MAKCU USB Device**: High-speed mouse control via serial communication
-- **Multi-Device Support**: Compatible with MAKCU, CH343, CH340, CH347, and CP2102
-- **High-Speed Communication**: Configurable baud rates up to 4Mbps
+
+Mouse control can be done via several backends. Choose one in the Config tab (Mouse API).
+
+| Backend | Connection | Notes |
+|--------|------------|--------|
+| **Serial** | USB serial (MAKCU or compatible adapter) | MAKCU (1A86:55D3), CH343, CH340, CH347, CP2102. Baud rate up to 4 Mbps. |
+| **Arduino** | USB serial (Arduino-compatible) | Configurable port and baud (default 115200). |
+| **SendInput** | Windows API | No extra hardware; uses Windows SendInput for mouse/keyboard. |
+| **Net** | Network (TCP + DLL) | Remote mouse control via network; requires KMNet DLL and device on network. |
+| **KmboxA** | USB (VID/PID) | KmboxA device; configure VID/PID in config. |
+| **MakV2** / **MakV2Binary** | USB serial | MakV2 devices; configurable port and baud (e.g. 4Mbps). |
+| **DHZ** | Network (IP + port) | DHZ device over network; IP, port, and optional random shift. |
+| **Ferrum** | Serial (device path) | Ferrum device; serial connection. |
+
+- **Auto-connect**: Optional startup connection to the selected Mouse API.
+- **Button masking & movement lock**: Supported on Serial, MakV2, MakV2Binary, and others where applicable.
+- **Keyboard output**: Available on Serial, SendInput, Net, KmboxA, MakV2, MakV2Binary, DHZ, Ferrum (see UI for per-backend behavior).
 
 ### Customization Options
 - Adjustable sensitivity and smoothing
@@ -40,8 +64,8 @@ CVM colorbot is a computer-vision mouse aiming system using HSV color detection 
 - USB port for MAKCU connection
 
 ### Software
-- Python 3.12+
-- Windows operating system
+- **Python 3.11 to 3.13.x** (e.g. 3.11.x, 3.12.x, 3.13.7). Tested up to 3.13.7; **Python 3.14 is not supported**. (Dependencies such as NumPy 2.2.x officially support 3.10–3.13; 3.11+ is recommended.)
+- Windows operating system (10/11)
 
 ## Installation
 
@@ -141,14 +165,17 @@ CVM-colorBot/
 │   │   ├── RCS.py         # Recoil control system
 │   │   └── anti_smoke_detector.py
 │   ├── capture/           # Video capture modules
-│   │   ├── capture_service.py
-│   │   ├── ndi.py         # NDI capture
-│   │   ├── CaptureCard.py # Capture card support
-│   │   └── OBS_UDP.pyx    # UDP streaming
+│   │   ├── capture_service.py   # Unified capture service
+│   │   ├── ndi.py               # NDI capture
+│   │   ├── OBS_UDP.py          # UDP streaming (OBS-compatible)
+│   │   ├── CaptureCard.py      # Capture card (DirectShow/Media Foundation)
+│   │   ├── CaptureCardGStreamer.py  # Capture card (GStreamer, optional)
+│   │   └── mss_capture.py      # MSS screen capture
 │   └── utils/             # Utility modules
 │       ├── config.py      # Configuration management
 │       ├── detection.py   # HSV color detection
-│       └── mouse.py       # MAKCU mouse control
+│       ├── mouse_input.py
+│       └── mouse/        # Mouse control backends (Serial, Arduino, SendInput, Net, KmboxA, MakV2, DHZ, Ferrum)
 ├── configs/               # Configuration profiles
 └── themes/                # UI themes
 ```
@@ -165,17 +192,22 @@ Configuration is stored in `config.json` and can be managed through the GUI or m
 
 ## Supported Devices
 
-### Serial Adapters
-- MAKCU (1A86:55D3)
-- CH343 (1A86:5523)
-- CH340 (1A86:7523)
-- CH347 (1A86:5740)
-- CP2102 (10C4:EA60)
+### Mouse / Control Backends
+- **Serial**: MAKCU (1A86:55D3), CH343 (1A86:5523), CH340 (1A86:7523), CH347 (1A86:5740), CP2102 (10C4:EA60)
+- **Arduino**: Arduino-compatible boards over USB serial
+- **SendInput**: Built-in Windows (no device required)
+- **Net**: Network device with KMNet DLL
+- **KmboxA**: KmboxA USB device (VID/PID configurable)
+- **MakV2 / MakV2Binary**: MakV2 family over serial
+- **DHZ**: DHZ device over network (IP/port)
+- **Ferrum**: Ferrum device over serial
 
-### Video Sources
-- NDI sources (via Network Device Interface)
-- UDP video streams
-- Capture cards (via DirectShow/Media Foundation)
+### Video Capture Sources
+- **NDI**: Any NDI source on the network (e.g. NDI Tools, OBS with NDI output)
+- **UDP**: Any UDP video stream (e.g. OBS UDP streaming)
+- **Capture Card**: DirectShow/Media Foundation compatible capture cards
+- **Capture Card (GStreamer)**: Same hardware with GStreamer pipeline (optional)
+- **MSS**: Local screen capture (no capture card needed)
 
 ## Technical Details
 
