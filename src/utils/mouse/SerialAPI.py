@@ -1,12 +1,13 @@
 from src.utils.debug_logger import log_print
 import threading
 import time
+import ctypes
 
 import serial
 from serial.tools import list_ports
 
 from . import state
-from .keycodes import to_hid_code
+from .keycodes import to_hid_code, to_vk_code
 
 SUPPORTED_DEVICES = [
     ("1A86:55D3", "MAKCU"),
@@ -278,10 +279,14 @@ def key_press(key):
 
 
 def is_key_pressed(key) -> bool:
-    # Serial listener currently tracks mouse buttons only.
-    # Keyboard state query is intentionally read-free to avoid listener conflicts.
-    _ = key
-    return False
+    """Check if a keyboard key is pressed using Windows API (local input, not Serial)."""
+    vk = to_vk_code(key)
+    if vk is None:
+        return False
+    try:
+        return bool(ctypes.windll.user32.GetAsyncKeyState(int(vk)) & 0x8000)
+    except Exception:
+        return False
 
 
 def test_move():
