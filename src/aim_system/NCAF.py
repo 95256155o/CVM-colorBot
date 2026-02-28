@@ -86,8 +86,11 @@ class NCAFController:
         distance = math.hypot(dx, dy)
         
         # 只要目標距離準星中心小於等於 20 像素，系統就當作「完美命中」，徹底放棄微調！
-        if distance <= 20.0:
+        if distance <= 30.0:
             self.last_dx, self.last_dy = dx, dy
+            if self.force_active:
+                self.force_active = False
+                self.last_force_time = time.time()
             return 0.0, 0.0
 
         # ==========================================
@@ -104,41 +107,40 @@ class NCAFController:
         intent_strength = dot_product / (distance + 1e-6)
 
         # ==========================================
-        # [NEW] 2. 觸發「300ms 神秘推力」
+        # [NEW] 2. 觸發「神秘推力」
         # ==========================================
         if not self.force_active:
-            # 確保過了 1 秒的冷卻時間
+            # 確保過了冷卻時間
             if (current_time - self.last_force_time) > self.force_cooldown:
-                # 只有當玩家主動往目標方向「甩」超過閾值時，才啟動推力！
+                # 只有當玩家主動往目標方向「甩」超過閾值時，才啟動推力
                 if intent_strength > self.flick_threshold:
                     self.force_active = True
                     self.force_start_time = current_time
-                    # 你可以把下面這行取消註解，在終端機看觸發時機
-                    # print("🚀 [NCAF] 偵測到甩槍意圖，啟動 300ms 神秘推力！")
-                    
+                    # 💡 建議打開這個 print，你就能明確看到 1 秒的冷卻有沒有生效
+                    print(f"🚀 [NCAF] 推力啟動！ (CD: {self.force_cooldown}s)")
         # ==========================================
         #[NEW] 3. 計算推力的動態曲線 (Sine Wave)
         # ==========================================
         force_multiplier = 1.0
+        
         if self.force_active:
             elapsed = current_time - self.force_start_time
+            
+            # 狀況 A：推力時間結束
             if elapsed > self.force_duration:
-                # 推力結束，進入冷卻
                 self.force_active = False
-                self.last_force_time = current_time
+                self.last_force_time = current_time  # 正常結束，開始算冷卻！
+                
+            # 狀況 B：緊急煞車機制 (玩家反向拉動)
+            elif intent_strength < -self.flick_threshold * 2:
+                self.force_active = False
+                self.last_force_time = current_time  # 🐛[修復Bug] 煞車也要開始算冷卻，防止無限重置！
+                print("🛑 [NCAF] 玩家抵抗，推力中斷，進入冷卻！")
+            # 狀況 C：推力正常發揮中
             else:
-                # 緊急煞車機制：如果推力期間，玩家突然往反方向用力拉 (比如敵人死了他要換目標)
-                if intent_strength < -self.flick_threshold * 2:
-                    self.force_active = False  # 立刻中斷推力，把控制權還給玩家
-                else:
-                    # 畫一個完美的 Sine 曲線：0 -> 1 -> 0
-                    # 這樣推力介入和退出的瞬間會極度平滑，不會有「頓挫感」
-                    progress = elapsed / self.force_duration
-                    curve = math.sin(progress * math.pi)
-                    
-                    # 將曲線映射到倍率上 (例如 1.0 到 2.5 倍)
-                    force_multiplier = 1.0 + (curve * (self.force_max_mult - 1.0))
-
+                progress = elapsed / self.force_duration
+                curve = math.sin(progress * math.pi)
+                force_multiplier = 1.0 + (curve * (self.force_max_mult - 1.0))
         # ------------------------------------------
         # 4. 原本的 NCAF 核心運算
         # ------------------------------------------
