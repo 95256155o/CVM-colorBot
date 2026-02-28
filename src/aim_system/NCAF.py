@@ -105,7 +105,8 @@ class NCAFController:
             tuple: (new_dx, new_dy) adjusted deltas
         """
         distance = math.hypot(dx, dy)
-        if distance <= 1e-6:
+        #只要目標距離準星中心小於等於 20 像素，系統就當作「完美命中」，徹底放棄微調！
+        if distance <= 20.0:
             return 0.0, 0.0
 
         factor = self.compute_ncaf_factor(distance, snap_radius, near_radius,
